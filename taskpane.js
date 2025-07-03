@@ -15,29 +15,33 @@ async function uploadPDF() {
 
   const allResults = [];
 
-  for (const file of files) {
-    const formData = new FormData();
-    formData.append("file", file);
+  for (let i = 0; i < files.length; i++) {
+  const file = files[i];
+  const formData = new FormData();
+  formData.append("file", file);
 
-    try {
-      const res = await fetch("https://pmfusion-api.onrender.com/process", {
-        method: "POST",
-        body: formData
-      });
+  preview.innerHTML = `<p><em>Verarbeite Datei ${i + 1} von ${files.length}: ${file.name}</em></p>`;
 
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || "Fehler bei der Verarbeitung");
-      }
+  try {
+    const res = await fetch("https://vlp-upload.onrender.com/process", {
+      method: "POST",
+      body: formData
+    });
 
-      const data = await res.json();
-      allResults.push(data);
-    } catch (err) {
-      console.error("Fehler:", err.message);
-      showError("Verarbeitung fehlgeschlagen: " + err.message);
-      return;
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || "Fehler bei der Verarbeitung");
     }
+
+    const data = await res.json();
+    allResults.push(data);
+  } catch (err) {
+    console.error("Fehler:", err.message);
+    showError("Verarbeitung fehlgeschlagen: " + err.message);
+    return;
   }
+}
+
 
   // Alle PDF-Ergebnisse kombinieren
   const combined = {};
