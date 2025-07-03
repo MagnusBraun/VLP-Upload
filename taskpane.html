@@ -2,12 +2,57 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>VerlgePROtokoll einlesen</title>
+  <title>PMFusion PDF Upload</title>
   <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
-  <script defer src="taskpane.js"></script>
+  <script src="taskpane.js" defer></script>
+  <style>
+    body {
+      font-family: Calibri, sans-serif;
+      margin: 1rem;
+    }
+
+    input[type="file"] {
+      margin-bottom: 1rem;
+    }
+
+    table {
+      border-collapse: collapse;
+      margin-top: 1rem;
+      width: 100%;
+    }
+
+    th, td {
+      padding: 6px 10px;
+      border: 1px solid #ccc;
+      text-align: left;
+    }
+
+    th {
+      background-color: #f0f0f0;
+    }
+
+    button {
+      margin-top: 1rem;
+      padding: 0.5rem 1rem;
+      background-color: #0078D7;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    button:hover {
+      background-color: #005fa3;
+    }
+
+    #preview {
+      margin-top: 1rem;
+    }
+  </style>
 </head>
 <body>
-  <h2>PDF hochladen</h2>
+  <h2>PDF-Dateien hochladen</h2>
   <input type="file" id="fileInput" accept=".pdf" multiple />
   <div id="preview"></div>
 </body>
