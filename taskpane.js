@@ -81,8 +81,13 @@ async function insertToExcel(mapped) {
       values.push(headers.map(h => mapped[h][i] || ""));
     }
 
-    const range = sheet.getRange("A1").getResized(values.length - 1, headers.length - 1);
+    // Verwende Excel Web-kompatible Methode:
+    const rowCount = values.length;
+    const colCount = headers.length;
+
+    const range = sheet.getRangeByIndexes(0, 0, rowCount, colCount);
     range.values = values;
+
     await context.sync();
   });
 }
