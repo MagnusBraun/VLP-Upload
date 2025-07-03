@@ -120,6 +120,8 @@ async function insertToExcel(mapped) {
     range.values = dataRows;
     range.format.font.name = "Calibri";
     range.format.font.size = 11;
+    range.format.horizontalAlignment = "Left";
+
 
     await context.sync();
   });
