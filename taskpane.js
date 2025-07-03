@@ -73,46 +73,41 @@ function previewInTable(mapped) {
 async function insertToExcel(mapped) {
   await Excel.run(async (context) => {
     const sheet = context.workbook.worksheets.getActiveWorksheet();
-    const headers = Object.keys(mapped);
-    const maxLength = Math.max(...headers.map(k => mapped[k].length));
+    const headerRange = sheet.getRange("A1").getEntireRow();
+    headerRange.load("values");
+    await context.sync();
 
-    const values = [headers];
-    for (let i = 0; i < maxLength; i++) {
-      values.push(headers.map(h => mapped[h][i] || ""));
-    }
-
-    const rowCount = values.length;
-    const colCount = headers.length;
+    const excelHeaders = headerRange.values[0];
+    const colCount = excelHeaders.length;
+    const maxRows = Math.max(...Object.values(mapped).map(col => col.length));
 
     const usedRange = sheet.getUsedRange();
     usedRange.load("rowCount");
     await context.sync();
 
     const startRow = usedRange.rowCount;
-    const range = sheet.getRangeByIndexes(startRow, 0, rowCount, colCount);
-    range.values = values;
+
+    // Zeilenweise Werte erstellen anhand Excel-Headerreihenfolge
+    const rows = [];
+    for (let i = 0; i < maxRows; i++) {
+      const row = [];
+      for (let h = 0; h < colCount; h++) {
+        const key = excelHeaders[h];
+        const colData = mapped[key] || [];
+        row.push(colData[i] || "");
+      }
+      rows.push(row);
+    }
+
+    const range = sheet.getRangeByIndexes(startRow, 0, rows.length, colCount);
+    range.values = rows;
     range.format.font.name = "Calibri";
     range.format.font.size = 11;
 
     await context.sync();
-
-    // 🧹 Entferne leere Zeilen am unteren Ende (komplett leere Zeilen)
-    const finalUsedRange = sheet.getUsedRange();
-    finalUsedRange.load("values");
-    await context.sync();
-
-    const rowsToKeep = finalUsedRange.values.filter(row =>
-      row.some(cell => cell !== null && cell !== "")
-    );
-
-    const newRange = sheet.getRangeByIndexes(0, 0, rowsToKeep.length, colCount);
-    newRange.values = rowsToKeep;
-    newRange.format.font.name = "Calibri";
-    newRange.format.font.size = 11;
-
-    await context.sync();
   });
 }
+
 
 
 function showError(msg) {
