@@ -4,7 +4,7 @@
            xsi:type="TaskPaneApp">
 	<Id>8c0e43b9-7b7e-4d42-9b4b-83d8a75e8b1f</Id>
 	<Version>1.0.0.0</Version>
-	<ProviderName>PMFusion</ProviderName>
+	<ProviderName>vlpro</ProviderName>
 	<DefaultLocale>de-DE</DefaultLocale>
 	<DisplayName DefaultValue="VerlegePROtokoll Einleser" />
 	<Description DefaultValue="Importiert PDF-Daten in Excel" />
