@@ -25,7 +25,7 @@ HEADER_MAP = {
     "Ømm": ["durchmesser", "ø", "Ø", "ømm", "mm", "Durchmesser in mm", "Durch-messer in mm"],
     "Trommelnummer": ["Trommel", "trommelnummer", "Trommel-nummer"],
     "von Ort": ["von ort", "start ort"],
-    "von km.": ["von km", "start km", "anfang km"],
+    "von km": ["von km", "start km", "anfang km"],
     "Metr.(von)": ["metr", "meter", "metr.", "Metr."],
     "bis Ort": ["bis ort", "ziel ort", "end ort"],
     "bis km": ["bis km", "ziel km", "end km"],
