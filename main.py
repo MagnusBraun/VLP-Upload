@@ -14,11 +14,10 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["https://magnusbraun.github.io"],  # exakt deine GitHub Pages Domain
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-)
 
 HEADER_MAP = {
     "Kabelnummer": ["kabelnummer", "kabel-nummer", "Kabel-nummer", "Kabel-Nummer"],
