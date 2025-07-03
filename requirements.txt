@@ -3,4 +3,3 @@ uvicorn
 pdfplumber
 pandas
 python-multipart
-difflib
