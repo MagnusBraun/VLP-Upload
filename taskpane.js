@@ -68,7 +68,6 @@ async function uploadPDF() {
   }
 }
 
-
 function previewInTable(mapped) {
   const preview = document.getElementById("preview");
   preview.innerHTML = "";
@@ -104,6 +103,35 @@ function previewInTable(mapped) {
   preview.appendChild(insertBtn);
 }
 
+// normalize string: lowercase, no spaces/symbols
+function normalizeLabel(label) {
+  return label.toLowerCase().replace(/[^a-z0-9]/gi, "");
+}
+
+// map excel headers to closest pdf keys
+function createHeaderMap(excelHeaders, mappedKeys) {
+  const excelMap = {};
+  const normalizedExcel = excelHeaders.map(h => normalizeLabel(h));
+  const normalizedPDF = mappedKeys.map(k => normalizeLabel(k));
+
+  for (let i = 0; i < excelHeaders.length; i++) {
+    const excelHeaderNorm = normalizedExcel[i];
+    let bestMatch = null;
+    for (let j = 0; j < mappedKeys.length; j++) {
+      const pdfNorm = normalizedPDF[j];
+      if (excelHeaderNorm === pdfNorm ||
+          pdfNorm.includes(excelHeaderNorm) ||
+          excelHeaderNorm.includes(pdfNorm)) {
+        bestMatch = mappedKeys[j];
+        break;
+      }
+    }
+    excelMap[excelHeaders[i]] = bestMatch;
+  }
+
+  return excelMap;
+}
+
 async function insertToExcel(mapped) {
   await Excel.run(async (context) => {
     const sheet = context.workbook.worksheets.getActiveWorksheet();
@@ -126,19 +154,15 @@ async function insertToExcel(mapped) {
 
     const startRow = usedRange.rowCount;
 
-    const normalizedMap = {};
-    for (const key in mapped) {
-      const norm = key.toLowerCase().trim();
-      normalizedMap[norm] = mapped[key];
-    }
+    const headerMap = createHeaderMap(excelHeaders, Object.keys(mapped));
 
     const dataRows = [];
     for (let i = 0; i < maxRows; i++) {
       const row = [];
       for (let h = 0; h < colCount; h++) {
-        const header = excelHeaders[h];
-        const normHeader = header ? header.toString().toLowerCase().trim() : "";
-        const colData = normalizedMap[normHeader] || [];
+        const excelHeader = excelHeaders[h];
+        const pdfKey = headerMap[excelHeader];
+        const colData = pdfKey ? mapped[pdfKey] : [];
         row.push(colData[i] || "");
       }
       if (row.some(cell => cell !== "")) {
@@ -165,3 +189,4 @@ function showError(msg) {
   const preview = document.getElementById("preview");
   preview.innerHTML = `<div style="color:red;font-weight:bold">${msg}</div>`;
 }
+
