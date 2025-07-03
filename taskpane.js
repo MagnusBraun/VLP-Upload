@@ -1,39 +1,51 @@
 Office.onReady(() => {
-  document.getElementById("uploadButton").onclick = uploadPDF;
+  document.getElementById("fileInput").onchange = uploadPDF;
 });
 
 async function uploadPDF() {
   const input = document.getElementById("fileInput");
   const files = input.files;
   if (files.length === 0) {
-    showError("Bitte wähle eine PDF-Datei aus.");
+    showError("Bitte wähle mindestens eine PDF-Datei aus.");
     return;
   }
 
   const preview = document.getElementById("preview");
-  preview.innerHTML = "<p><em>PDF wird verarbeitet...</em></p>";
+  preview.innerHTML = "<p><em>PDFs werden verarbeitet...</em></p>";
 
-  const formData = new FormData();
-  formData.append("file", files[0]);
+  const allResults = [];
 
-  try {
-    const res = await fetch("https://vlp-upload.onrender.com/process", {
-      method: "POST",
-      body: formData
-    });
+  for (const file of files) {
+    const formData = new FormData();
+    formData.append("file", file);
 
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.detail || "Fehler bei der Verarbeitung");
+    try {
+      const res = await fetch("https://pmfusion-api.onrender.com/process", {
+        method: "POST",
+        body: formData
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || "Fehler bei der Verarbeitung");
+      }
+
+      const data = await res.json();
+      allResults.push(data);
+    } catch (err) {
+      console.error("Fehler:", err.message);
+      showError("Verarbeitung fehlgeschlagen: " + err.message);
+      return;
     }
-
-    const data = await res.json();
-    previewInTable(data);
-  } catch (err) {
-    console.error("Fehler:", err.message);
-    showError("Verarbeitung fehlgeschlagen: " + err.message);
   }
-}
+
+  // Alle PDF-Ergebnisse kombinieren
+  const combined = {};
+  for (const data of allResults) {
+    for (const key in data) {
+      combined[key] = (combined[key] || []).concat(data[key]);
+    }
+  }
 
 function previewInTable(mapped) {
   const preview = document.getElementById("preview");
