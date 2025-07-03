@@ -81,16 +81,39 @@ async function insertToExcel(mapped) {
       values.push(headers.map(h => mapped[h][i] || ""));
     }
 
-    // Verwende Excel Web-kompatible Methode:
     const rowCount = values.length;
     const colCount = headers.length;
 
-    const range = sheet.getRangeByIndexes(0, 0, rowCount, colCount);
+    const usedRange = sheet.getUsedRange();
+    usedRange.load("rowCount");
+    await context.sync();
+
+    const startRow = usedRange.rowCount;
+    const range = sheet.getRangeByIndexes(startRow, 0, rowCount, colCount);
     range.values = values;
+    range.format.font.name = "Calibri";
+    range.format.font.size = 11;
+
+    await context.sync();
+
+    // 🧹 Entferne leere Zeilen am unteren Ende (komplett leere Zeilen)
+    const finalUsedRange = sheet.getUsedRange();
+    finalUsedRange.load("values");
+    await context.sync();
+
+    const rowsToKeep = finalUsedRange.values.filter(row =>
+      row.some(cell => cell !== null && cell !== "")
+    );
+
+    const newRange = sheet.getRangeByIndexes(0, 0, rowsToKeep.length, colCount);
+    newRange.values = rowsToKeep;
+    newRange.format.font.name = "Calibri";
+    newRange.format.font.size = 11;
 
     await context.sync();
   });
 }
+
 
 function showError(msg) {
   const preview = document.getElementById("preview");
