@@ -73,11 +73,16 @@ function previewInTable(mapped) {
 async function insertToExcel(mapped) {
   await Excel.run(async (context) => {
     const sheet = context.workbook.worksheets.getActiveWorksheet();
-    const headerRange = sheet.getRange("A1").getEntireRow();
+    const headerRange = sheet.getRange("A1:Z1");
     headerRange.load("values");
     await context.sync();
+    
+    const excelHeaders = headerRange.values?.[0] || [];
+    if (excelHeaders.length === 0) {
+      console.log("Keine Spaltenüberschriften in Excel gefunden.");
+      return;
+    }
 
-    const excelHeaders = headerRange.values[0];
     const colCount = excelHeaders.length;
     const maxRows = Math.max(...Object.values(mapped).map(col => col.length));
 
