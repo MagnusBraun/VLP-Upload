@@ -8,13 +8,13 @@
   <DefaultLocale>de-DE</DefaultLocale>
   <DisplayName DefaultValue="PMFusion PDF Import" />
   <Description DefaultValue="Importiere PDF-Daten direkt in Excel." />
-  <IconUrl DefaultValue="https://USERNAME.github.io/pmfusion-addin/icon.png"/>
-  <SupportUrl DefaultValue="https://USERNAME.github.io/pmfusion-addin" />
+  <IconUrl DefaultValue="https://github.com/MagnusBraun/VLP-Upload/icon.png"/>
+  <SupportUrl DefaultValue="https://github.com/MagnusBraun/VLP-Upload/" />
   <Hosts>
     <Host Name="Workbook" />
   </Hosts>
   <DefaultSettings>
-    <SourceLocation DefaultValue="https://USERNAME.github.io/pmfusion-addin/taskpane.html" />
+    <SourceLocation DefaultValue="https://github.com/MagnusBraun/VLP-Upload/taskpane.html" />
   </DefaultSettings>
   <Permissions>ReadWriteDocument</Permissions>
 </OfficeApp>
