@@ -87,16 +87,28 @@ async function insertToExcel(mapped) {
 
     const startRow = usedRange.rowCount;
 
-    // ❌ Kein Header, nur Datenzeilen erzeugen
+    // 🔄 Normiere mapped keys (klein, getrimmt)
+    const normalizedMap = {};
+    for (const key in mapped) {
+      const norm = key.toLowerCase().trim();
+      normalizedMap[norm] = mapped[key];
+    }
+
     const dataRows = [];
     for (let i = 0; i < maxRows; i++) {
       const row = [];
       for (let h = 0; h < colCount; h++) {
-        const key = excelHeaders[h];
-        const colData = mapped[key] || [];
+        const header = excelHeaders[h];
+        const normHeader = header ? header.toString().toLowerCase().trim() : "";
+        const colData = normalizedMap[normHeader] || [];
         row.push(colData[i] || "");
       }
-      dataRows.push(row);
+      row.some(cell => cell !== "") && dataRows.push(row); // füge nur nicht-leere Zeilen ein
+    }
+
+    if (dataRows.length === 0) {
+      console.log("Keine passenden Datenzeilen gefunden");
+      return;
     }
 
     const range = sheet.getRangeByIndexes(startRow, 0, dataRows.length, colCount);
@@ -107,6 +119,7 @@ async function insertToExcel(mapped) {
     await context.sync();
   });
 }
+
 
 function showError(msg) {
   const preview = document.getElementById("preview");
