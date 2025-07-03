@@ -14,6 +14,7 @@ async function uploadPDF() {
   preview.innerHTML = "<p><em>PDFs werden verarbeitet...</em></p>";
 
   const allResults = [];
+  const errors = [];
 
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
@@ -23,26 +24,30 @@ async function uploadPDF() {
     preview.innerHTML = `<p><em>Verarbeite Datei ${i + 1} von ${files.length}: ${file.name}</em></p>`;
 
     try {
-      const res = await fetch("https://vlp-upload.onrender.com/process", {
+      const res = await fetch("https://pmfusion-api.onrender.com/process", {
         method: "POST",
         body: formData
       });
 
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.detail || "Fehler bei der Verarbeitung");
+        throw new Error(err.detail || "Serverfehler");
       }
 
       const data = await res.json();
       allResults.push(data);
     } catch (err) {
-      console.error("Fehler:", err.message);
-      showError("Verarbeitung fehlgeschlagen: " + err.message);
-      return;
+      errors.push(`${file.name}: ${err.message}`);
+      continue;
     }
   }
 
   input.value = "";
+
+  if (allResults.length === 0) {
+    showError("Keine gültigen PDF-Dateien verarbeitet.");
+    return;
+  }
 
   const combined = {};
   for (const data of allResults) {
@@ -52,7 +57,17 @@ async function uploadPDF() {
   }
 
   previewInTable(combined);
+
+  if (errors.length > 0) {
+    const errorDiv = document.createElement("div");
+    errorDiv.style.color = "orangered";
+    errorDiv.style.marginTop = "1em";
+    errorDiv.innerHTML = "<strong>Folgende Dateien konnten nicht verarbeitet werden:</strong><br>" +
+                         errors.map(e => `• ${e}`).join("<br>");
+    preview.appendChild(errorDiv);
+  }
 }
+
 
 function previewInTable(mapped) {
   const preview = document.getElementById("preview");
