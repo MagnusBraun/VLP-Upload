@@ -6,14 +6,18 @@ async function uploadPDF() {
   const input = document.getElementById("fileInput");
   const files = input.files;
   if (files.length === 0) {
-    return alert("Bitte wähle eine PDF-Datei aus.");
+    showError("Bitte wähle eine PDF-Datei aus.");
+    return;
   }
+
+  const preview = document.getElementById("preview");
+  preview.innerHTML = "<p><em>PDF wird verarbeitet...</em></p>";
 
   const formData = new FormData();
   formData.append("file", files[0]);
 
   try {
-    const res = await fetch("https://vlp-upload.onrender.com/process", {
+    const res = await fetch("https://pmfusion-api.onrender.com/process", {
       method: "POST",
       body: formData
     });
@@ -26,8 +30,8 @@ async function uploadPDF() {
     const data = await res.json();
     previewInTable(data);
   } catch (err) {
-    console.error(err);
-    alert("Fehler: " + err.message);
+    console.error("Fehler:", err.message);
+    showError("Verarbeitung fehlgeschlagen: " + err.message);
   }
 }
 
@@ -81,4 +85,9 @@ async function insertToExcel(mapped) {
     range.values = values;
     await context.sync();
   });
+}
+
+function showError(msg) {
+  const preview = document.getElementById("preview");
+  preview.innerHTML = `<div style="color:red;font-weight:bold">${msg}</div>`;
 }
