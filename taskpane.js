@@ -111,27 +111,22 @@ function normalizeLabel(label) {
 // map excel headers to closest pdf keys
 function createHeaderMap(excelHeaders, mappedKeys) {
   const excelMap = {};
-  const normalizedExcel = excelHeaders.map(h => normalizeLabel(h));
-  const normalizedPDF = mappedKeys.map(k => normalizeLabel(k));
+  const normalizedPDF = {};
+  mappedKeys.forEach(k => {
+    normalizedPDF[normalizeLabel(k)] = k;
+  });
 
-  for (let i = 0; i < excelHeaders.length; i++) {
-    const excelHeaderNorm = normalizedExcel[i];
-    let bestMatch = null;
-    for (let j = 0; j < mappedKeys.length; j++) {
-      const pdfNorm = normalizedPDF[j];
-      if (excelHeaderNorm === pdfNorm ||
-          pdfNorm.includes(excelHeaderNorm) ||
-          excelHeaderNorm.includes(pdfNorm)) {
-        bestMatch = mappedKeys[j];
-        break;
-      }
+  for (const excelHeader of excelHeaders) {
+    const norm = normalizeLabel(excelHeader);
+    if (normalizedPDF[norm]) {
+      excelMap[excelHeader] = normalizedPDF[norm];
+    } else {
+      excelMap[excelHeader] = null; // keine passende PDF-Spalte gefunden
     }
-    excelMap[excelHeaders[i]] = bestMatch;
   }
 
   return excelMap;
 }
-
 async function insertToExcel(mapped) {
   await Excel.run(async (context) => {
     const sheet = context.workbook.worksheets.getActiveWorksheet();
