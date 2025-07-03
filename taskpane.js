@@ -42,7 +42,6 @@ async function uploadPDF() {
     }
   }
 
-  // Input resetten
   input.value = "";
 
   const combined = {};
@@ -89,6 +88,7 @@ function previewInTable(mapped) {
   insertBtn.onclick = () => insertToExcel(mapped);
   preview.appendChild(insertBtn);
 }
+
 async function insertToExcel(mapped) {
   await Excel.run(async (context) => {
     const sheet = context.workbook.worksheets.getActiveWorksheet();
@@ -111,7 +111,6 @@ async function insertToExcel(mapped) {
 
     const startRow = usedRange.rowCount;
 
-    // Normalisierte Zuordnung (klein, getrimmt)
     const normalizedMap = {};
     for (const key in mapped) {
       const norm = key.toLowerCase().trim();
