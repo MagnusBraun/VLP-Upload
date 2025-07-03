@@ -13,7 +13,7 @@ async function uploadPDF() {
   formData.append("file", files[0]);
 
   try {
-    const res = await fetch("https://<DEIN_SERVER>/process", {
+    const res = await fetch("https://vlp-upload.onrender.com/", {
       method: "POST",
       body: formData
     });
