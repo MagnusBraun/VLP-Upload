@@ -6,7 +6,7 @@
 	<Version>1.0.0.0</Version>
 	<ProviderName>PMFusion</ProviderName>
 	<DefaultLocale>de-DE</DefaultLocale>
-	<DisplayName DefaultValue="PMFusion PDF Import" />
+	<DisplayName DefaultValue="VerlegePROtokoll Einleser" />
 	<Description DefaultValue="Importiert PDF-Daten in Excel" />
 	<Hosts>
 		<Host Name="Workbook"/>
