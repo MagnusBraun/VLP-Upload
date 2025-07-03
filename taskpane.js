@@ -89,6 +89,63 @@ function previewInTable(mapped) {
   insertBtn.onclick = () => insertToExcel(mapped);
   preview.appendChild(insertBtn);
 }
+async function insertToExcel(mapped) {
+  await Excel.run(async (context) => {
+    const sheet = context.workbook.worksheets.getActiveWorksheet();
+    const headerRange = sheet.getRange("A1:Z1");
+    headerRange.load("values");
+    await context.sync();
+
+    const excelHeaders = headerRange.values?.[0] || [];
+    if (excelHeaders.length === 0) {
+      console.log("Keine Spaltenüberschriften in Excel gefunden.");
+      return;
+    }
+
+    const colCount = excelHeaders.length;
+    const maxRows = Math.max(...Object.values(mapped).map(col => col.length));
+
+    const usedRange = sheet.getUsedRange();
+    usedRange.load("rowCount");
+    await context.sync();
+
+    const startRow = usedRange.rowCount;
+
+    // Normalisierte Zuordnung (klein, getrimmt)
+    const normalizedMap = {};
+    for (const key in mapped) {
+      const norm = key.toLowerCase().trim();
+      normalizedMap[norm] = mapped[key];
+    }
+
+    const dataRows = [];
+    for (let i = 0; i < maxRows; i++) {
+      const row = [];
+      for (let h = 0; h < colCount; h++) {
+        const header = excelHeaders[h];
+        const normHeader = header ? header.toString().toLowerCase().trim() : "";
+        const colData = normalizedMap[normHeader] || [];
+        row.push(colData[i] || "");
+      }
+      if (row.some(cell => cell !== "")) {
+        dataRows.push(row);
+      }
+    }
+
+    if (dataRows.length === 0) {
+      console.log("Keine passenden Datenzeilen gefunden.");
+      return;
+    }
+
+    const range = sheet.getRangeByIndexes(startRow, 0, dataRows.length, colCount);
+    range.values = dataRows;
+    range.format.font.name = "Calibri";
+    range.format.font.size = 11;
+    range.format.horizontalAlignment = "Left";
+
+    await context.sync();
+  });
+}
 
 function showError(msg) {
   const preview = document.getElementById("preview");
