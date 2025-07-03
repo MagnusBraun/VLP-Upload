@@ -87,8 +87,8 @@ async function insertToExcel(mapped) {
 
     const startRow = usedRange.rowCount;
 
-    // Zeilenweise Werte erstellen anhand Excel-Headerreihenfolge
-    const rows = [];
+    // ❌ Kein Header, nur Datenzeilen erzeugen
+    const dataRows = [];
     for (let i = 0; i < maxRows; i++) {
       const row = [];
       for (let h = 0; h < colCount; h++) {
@@ -96,19 +96,17 @@ async function insertToExcel(mapped) {
         const colData = mapped[key] || [];
         row.push(colData[i] || "");
       }
-      rows.push(row);
+      dataRows.push(row);
     }
 
-    const range = sheet.getRangeByIndexes(startRow, 0, rows.length, colCount);
-    range.values = rows;
+    const range = sheet.getRangeByIndexes(startRow, 0, dataRows.length, colCount);
+    range.values = dataRows;
     range.format.font.name = "Calibri";
     range.format.font.size = 11;
 
     await context.sync();
   });
 }
-
-
 
 function showError(msg) {
   const preview = document.getElementById("preview");
