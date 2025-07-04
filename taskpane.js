@@ -157,7 +157,7 @@ async function uploadPDF() {
     preview.innerHTML = `<p><em>Verarbeite Datei ${i + 1} von ${files.length}: ${file.name}</em></p>`;
 
     try {
-      const res = await fetch("https://pmfusion-api.onrender.com/process", {
+      const res = await fetch("https://vlp-upload.onrender.com/process", {
         method: "POST",
         body: formData
       });
