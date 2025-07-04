@@ -54,13 +54,22 @@ function createHeaderMapWithAliases(excelHeaders, mappedKeys, aliases) {
     const cleaned = excelHeader?.trim();
     if (!cleaned) continue;
 
-    const aliasList = aliases[cleaned] || [];
     let match = null;
-    for (const alias of aliasList) {
-      const normAlias = normalizeLabel(alias);
-      if (normMapped[normAlias]) {
-        match = normMapped[normAlias];
-        break;
+    const normExcel = normalizeLabel(cleaned);
+
+    // Direkt 1:1 Match prüfen
+    if (normMapped[normExcel]) {
+      match = normMapped[normExcel];
+    } else {
+      // Alias-Check: durchsuche alle Aliase
+      for (const [stdLabel, aliasList] of Object.entries(aliases)) {
+        for (const alias of aliasList) {
+          if (normalizeLabel(alias) === normExcel && normMapped[normExcel]) {
+            match = normMapped[normExcel];
+            break;
+          }
+        }
+        if (match) break;
       }
     }
 
