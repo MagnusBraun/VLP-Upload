@@ -24,7 +24,7 @@ async function uploadPDF() {
     preview.innerHTML = `<p><em>Verarbeite Datei ${i + 1} von ${files.length}: ${file.name}</em></p>`;
 
     try {
-      const res = await fetch("https://vlp-upload.onrender.com/process", {
+      const res = await fetch("https://pmfusion-api.onrender.com/process", {
         method: "POST",
         body: formData
       });
@@ -103,30 +103,42 @@ function previewInTable(mapped) {
   preview.appendChild(insertBtn);
 }
 
-// normalize string: lowercase, no spaces/symbols
 function normalizeLabel(label) {
   return label.toLowerCase().replace(/[^a-z0-9]/gi, "");
 }
 
-// map excel headers to closest pdf keys
-function createHeaderMap(excelHeaders, mappedKeys) {
+// Benutzerdefinierte Zuordnungstabellen pro Excel-Spalte
+const columnAliases = {
+  "Kabelnummer": ["kabelnummer", "kabel-nr", "kabelnr", "knr", "kabnr"],
+  "Trommelnummer": ["trommelnummer", "trommel-nr", "tnr"],
+  "Durchmesser": ["durchmesser", "ø", "dm"],
+  "Länge": ["länge", "kabellänge", "laenge"],
+  "Farbe": ["farbe", "farbenkennung"]
+};
+
+function createHeaderMapWithAliases(excelHeaders, mappedKeys, aliases) {
   const excelMap = {};
-  const normalizedPDF = {};
+  const normMapped = {};
   mappedKeys.forEach(k => {
-    normalizedPDF[normalizeLabel(k)] = k;
+    normMapped[normalizeLabel(k)] = k;
   });
 
   for (const excelHeader of excelHeaders) {
-    const norm = normalizeLabel(excelHeader);
-    if (normalizedPDF[norm]) {
-      excelMap[excelHeader] = normalizedPDF[norm];
-    } else {
-      excelMap[excelHeader] = null; // keine passende PDF-Spalte gefunden
+    const aliasList = aliases[excelHeader] || [];
+    let match = null;
+    for (const alias of aliasList) {
+      const normAlias = normalizeLabel(alias);
+      if (normMapped[normAlias]) {
+        match = normMapped[normAlias];
+        break;
+      }
     }
+    excelMap[excelHeader] = match;
   }
 
   return excelMap;
 }
+
 async function insertToExcel(mapped) {
   await Excel.run(async (context) => {
     const sheet = context.workbook.worksheets.getActiveWorksheet();
@@ -149,7 +161,7 @@ async function insertToExcel(mapped) {
 
     const startRow = usedRange.rowCount;
 
-    const headerMap = createHeaderMap(excelHeaders, Object.keys(mapped));
+    const headerMap = createHeaderMapWithAliases(excelHeaders, Object.keys(mapped), columnAliases);
 
     const dataRows = [];
     for (let i = 0; i < maxRows; i++) {
