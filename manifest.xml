@@ -6,7 +6,7 @@
 	<Version>1.0.0.0</Version>
 	<ProviderName>vlpro</ProviderName>
 	<DefaultLocale>de-DE</DefaultLocale>
-	<DisplayName DefaultValue="VerlegePROtokoll Einleser" />
+	<DisplayName DefaultValue="VLP upload" />
 	<Description DefaultValue="Importiert PDF-Daten in Excel" />
 	<Hosts>
 		<Host Name="Workbook"/>
