@@ -141,7 +141,7 @@ function createHeaderMapWithAliases(excelHeaders, mappedKeys, aliases) {
 async function resolveMissingMappings(headerMap, mappedKeys) {
   return new Promise((resolve) => {
     const missing = Object.entries(headerMap).filter(([_, v]) => v === null);
-    if (missing.length === 0) return resolve(headerMap);
+    if (missing.length === 0) return resolve(headerMap); // keine offenen Zuordnungen
 
     const overlay = document.createElement("div");
     overlay.style.position = "fixed";
