@@ -1,5 +1,8 @@
 Office.onReady(() => {
-  document.getElementById("fileInput").onchange = uploadPDF;
+  const input = document.getElementById("fileInput");
+  if (input) {
+    input.onchange = uploadPDF;
+  }
 });
 
 const apiUrl = "https://vlp-upload.onrender.com/process";
@@ -10,7 +13,6 @@ function normalizeLabel(label) {
 }
 
 const columnAliases = {
-
 "Kabelnummer": ["kabelnummer", "kabel-nr", "kabelnr", "knr", "kabnr"],
   "Kabeltyp": ["typ", "Typ", "Kabel-Typ", "kabel-typ", "Kabeltype"],
   "Trommelnummer": ["trommelnummer", "trommel-nr", "tnr"],
