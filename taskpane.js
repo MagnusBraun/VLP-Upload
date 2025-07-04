@@ -107,7 +107,6 @@ function normalizeLabel(label) {
   return label.toLowerCase().replace(/[^a-z0-9]/gi, "");
 }
 
-// Benutzerdefinierte Zuordnungstabellen pro Excel-Spalte
 const columnAliases = {
   "Kabelnummer": ["kabelnummer", "kabel-nr", "kabelnr", "knr", "kabnr"],
   "Trommelnummer": ["trommelnummer", "trommel-nr", "tnr"],
@@ -139,6 +138,78 @@ function createHeaderMapWithAliases(excelHeaders, mappedKeys, aliases) {
   return excelMap;
 }
 
+async function resolveMissingMappings(headerMap, mappedKeys) {
+  return new Promise((resolve) => {
+    const missing = Object.entries(headerMap).filter(([_, v]) => v === null);
+    if (missing.length === 0) return resolve(headerMap);
+
+    const overlay = document.createElement("div");
+    overlay.style.position = "fixed";
+    overlay.style.top = "0";
+    overlay.style.left = "0";
+    overlay.style.width = "100%";
+    overlay.style.height = "100%";
+    overlay.style.backgroundColor = "rgba(0,0,0,0.4)";
+    overlay.style.zIndex = "9999";
+    overlay.style.padding = "2em";
+    overlay.style.overflow = "auto";
+
+    const box = document.createElement("div");
+    box.style.background = "white";
+    box.style.padding = "1em";
+    box.style.borderRadius = "8px";
+    box.style.maxWidth = "500px";
+    box.style.margin = "auto";
+
+    const title = document.createElement("h3");
+    title.textContent = "Manuelle Spaltenzuordnung erforderlich:";
+    box.appendChild(title);
+
+    missing.forEach(([excelCol]) => {
+      const label = document.createElement("label");
+      label.textContent = `Excel: ${excelCol}`;
+      label.style.display = "block";
+      label.style.marginTop = "10px";
+
+      const select = document.createElement("select");
+      select.dataset.excelCol = excelCol;
+
+      const none = document.createElement("option");
+      none.value = "";
+      none.textContent = "Keine Zuordnung";
+      select.appendChild(none);
+
+      mappedKeys.forEach(key => {
+        const option = document.createElement("option");
+        option.value = key;
+        option.textContent = key;
+        select.appendChild(option);
+      });
+
+      box.appendChild(label);
+      box.appendChild(select);
+    });
+
+    const button = document.createElement("button");
+    button.textContent = "Zuordnung übernehmen";
+    button.style.marginTop = "1em";
+    button.onclick = () => {
+      const selects = box.querySelectorAll("select");
+      selects.forEach(select => {
+        const col = select.dataset.excelCol;
+        const val = select.value;
+        if (val) headerMap[col] = val;
+      });
+      overlay.remove();
+      resolve(headerMap);
+    };
+
+    box.appendChild(button);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+  });
+}
+
 async function insertToExcel(mapped) {
   await Excel.run(async (context) => {
     const sheet = context.workbook.worksheets.getActiveWorksheet();
@@ -161,7 +232,8 @@ async function insertToExcel(mapped) {
 
     const startRow = usedRange.rowCount;
 
-    const headerMap = createHeaderMapWithAliases(excelHeaders, Object.keys(mapped), columnAliases);
+    let headerMap = createHeaderMapWithAliases(excelHeaders, Object.keys(mapped), columnAliases);
+    headerMap = await resolveMissingMappings(headerMap, Object.keys(mapped));
 
     const dataRows = [];
     for (let i = 0; i < maxRows; i++) {
@@ -196,4 +268,3 @@ function showError(msg) {
   const preview = document.getElementById("preview");
   preview.innerHTML = `<div style="color:red;font-weight:bold">${msg}</div>`;
 }
-
