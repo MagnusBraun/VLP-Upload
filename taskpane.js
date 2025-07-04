@@ -18,16 +18,16 @@ const columnAliases = {
   "Trommelnummer": ["trommelnummer", "trommel-nr", "tnr"],
   "Durchmesser": ["durchmesser", "ø", "dm","ømm","Ømm", "Ø"],
   "Trommelnummer": ["trommelnummer", "Trommel-Nummer", "trommel-nummer"],
-  "von Ort": ["von ort"]
-  "bis Ort": ["bis ort"]
-  "von km": ["von Km","von kilometer"]
-  "bis km": ["bis Km","bis kilometer"]
-  "Metr. (von)": ["Metr. von"]
-  "Metr. (bis)": ["Metr. bis"]
-  "SOLL": ["soll"]
-  "IST": ["ist"]
-  "Verlegeart": ["verlegeart"]
-  "Bemerkung": ["Bemerkungen","bemerkungen","bemerkung",]
+  "von Ort": ["von ort"],
+  "bis Ort": ["bis ort"],
+  "von km": ["von Km","von kilometer"],
+  "bis km": ["bis Km","bis kilometer"],
+  "Metr. (von)": ["Metr. von"],
+  "Metr. (bis)": ["Metr. bis"],
+  "SOLL": ["soll"],
+  "IST": ["ist"],
+  "Verlegeart": ["verlegeart"],
+  "Bemerkung": ["Bemerkungen","bemerkungen","bemerkung",],
 };
 
 function loadSavedMappings() {
