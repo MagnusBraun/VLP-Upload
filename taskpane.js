@@ -2,6 +2,7 @@ Office.onReady(() => {
   document.getElementById("fileInput").onchange = uploadPDF;
 });
 
+const apiUrl = "https://vlp-upload.onrender.com/process";
 const storageKey = "pmfusion-column-mapping";
 
 function normalizeLabel(label) {
@@ -9,7 +10,8 @@ function normalizeLabel(label) {
 }
 
 const columnAliases = {
-  "Kabelnummer": ["kabelnummer", "kabel-nr", "kabelnr", "knr", "kabnr"],
+
+"Kabelnummer": ["kabelnummer", "kabel-nr", "kabelnr", "knr", "kabnr"],
   "Kabeltyp": ["typ", "Typ", "Kabel-Typ", "kabel-typ", "Kabeltype"],
   "Trommelnummer": ["trommelnummer", "trommel-nr", "tnr"],
   "Durchmesser": ["durchmesser", "ø", "dm","ømm","Ømm", "Ø"],
@@ -157,7 +159,7 @@ async function uploadPDF() {
     preview.innerHTML = `<p><em>Verarbeite Datei ${i + 1} von ${files.length}: ${file.name}</em></p>`;
 
     try {
-      const res = await fetch("https://vlp-upload.onrender.com/process", {
+      const res = await fetch(apiUrl, {
         method: "POST",
         body: formData
       });
@@ -303,12 +305,6 @@ async function insertToExcel(mapped) {
     await context.sync();
   });
 }
-
-function showError(msg) {
-  const preview = document.getElementById("preview");
-  preview.innerHTML = `<div style="color:red;font-weight:bold">${msg}</div>`;
-}
-
 
 function showError(msg) {
   const preview = document.getElementById("preview");
