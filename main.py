@@ -20,9 +20,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 HEADER_MAP = {
-    "Kabelnummer": ["kabelnummer", "kabel-nummer", "Kabel-nummer", "Kabel-Nummer"],
+    "Kabelnummer": ["kabelnummer", "kabel-nummer", "Kabel-nummer", "Kabel-Nummer", "Kabel-Nr","Kabel-Nr.", "Kabel-nr", "Kabel-nr.", "kabel-nr", "kabel-nr."],
     "Kabeltyp": ["kabeltyp", "typ", "Kabeltype", "Kabel-type", "Kabel-Type"],
-    "Ømm": ["durchmesser", "ø", "Ø", "ømm", "mm", "Durchmesser in mm", "Durch-messer in mm"],
+    "Ømm": ["durchmesser", "ø", "Ø", "ømm", "mm", "Durchmesser in mm","durchmesser in mm", "Durch-messer in mm", "durch-messer in mm"],
     "Trommelnummer": ["Trommel", "trommelnummer", "Trommel-nummer"],
     "von Ort": ["von ort", "start ort"],
     "von km": ["von km", "start km", "anfang km"],
@@ -33,7 +33,7 @@ HEADER_MAP = {
     "SOLL": ["soll", "sollwert", "soll m"],
     "IST": ["ist", "istwert", "ist m"],
     "Verlegeart": ["verlegeart", "verlegung", "verlegungsart"],
-    "Bemerkung": ["bemerkung", "notiz", "kommentar"]
+    "Bemerkung": ["Bemerkungen","bemerkung","bemerkungen", "notiz", "kommentar", "Kommentar", "Anmerkung", "anmerkung"]
 }
 
 def make_unique(columns):
