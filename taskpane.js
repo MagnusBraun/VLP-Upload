@@ -13,21 +13,20 @@ function normalizeLabel(label) {
 }
 
 const columnAliases = {
-"Kabelnummer": ["kabelnummer", "kabel-nr", "kabelnr", "knr", "kabnr"],
-  "Kabeltyp": ["typ", "Typ", "Kabel-Typ", "kabel-typ", "Kabeltype"],
-  "Trommelnummer": ["trommelnummer", "trommel-nr", "tnr"],
-  "Durchmesser": ["durchmesser", "ø", "dm","ømm","Ømm", "Ø"],
-  "Trommelnummer": ["trommelnummer", "Trommel-Nummer", "trommel-nummer"],
+  "Kabelnummer": ["kabelnummer", "kabel-nr", "kabelnr", "knr", "kabnr"],
+  "Kabeltyp": ["typ", "kabel-typ", "kabeltype"],
+  "Trommelnummer": ["trommelnummer", "trommel-nr", "trommel-nummer"],
+  "Durchmesser": ["durchmesser", "ø", "dm", "ømm", "Ømm", "Ø"],
   "von Ort": ["von ort"],
   "bis Ort": ["bis ort"],
-  "von km": ["von Km","von kilometer"],
-  "bis km": ["bis Km","bis kilometer"],
-  "Metr. (von)": ["Metr. von"],
-  "Metr. (bis)": ["Metr. bis"],
+  "von km": ["von km", "von kilometer"],
+  "bis km": ["bis km", "bis kilometer"],
+  "Metr. (von)": ["metr. von"],
+  "Metr. (bis)": ["metr. bis"],
   "SOLL": ["soll"],
   "IST": ["ist"],
   "Verlegeart": ["verlegeart"],
-  "Bemerkung": ["Bemerkungen","bemerkungen","bemerkung",],
+  "Bemerkung": ["bemerkung", "bemerkungen"]
 };
 
 function loadSavedMappings() {
@@ -52,7 +51,10 @@ function createHeaderMapWithAliases(excelHeaders, mappedKeys, aliases) {
   });
 
   for (const excelHeader of excelHeaders) {
-    const aliasList = aliases[excelHeader] || [];
+    const cleaned = excelHeader?.trim();
+    if (!cleaned) continue;
+
+    const aliasList = aliases[cleaned] || [];
     let match = null;
     for (const alias of aliasList) {
       const normAlias = normalizeLabel(alias);
@@ -61,6 +63,7 @@ function createHeaderMapWithAliases(excelHeaders, mappedKeys, aliases) {
         break;
       }
     }
+
     excelMap[excelHeader] = match || null;
   }
 
@@ -69,7 +72,7 @@ function createHeaderMapWithAliases(excelHeaders, mappedKeys, aliases) {
 
 async function resolveMissingMappings(headerMap, mappedKeys) {
   return new Promise((resolve) => {
-    const missing = Object.entries(headerMap).filter(([_, v]) => v === null);
+    const missing = Object.entries(headerMap).filter(([k, v]) => k.trim() !== "" && v === null);
     if (missing.length === 0) return resolve(headerMap);
 
     const overlay = document.createElement("div");
@@ -175,7 +178,6 @@ async function uploadPDF() {
       allResults.push(data);
     } catch (err) {
       errors.push(`${file.name}: ${err.message}`);
-      continue;
     }
   }
 
@@ -254,10 +256,7 @@ async function insertToExcel(mapped) {
     await context.sync();
 
     const excelHeaders = headerRange.values?.[0] || [];
-    if (excelHeaders.length === 0) {
-      console.log("Keine Spaltenüberschriften in Excel gefunden.");
-      return;
-    }
+    if (excelHeaders.length === 0) return;
 
     const colCount = excelHeaders.length;
     const maxRows = Math.max(...Object.values(mapped).map(col => col.length));
@@ -293,10 +292,7 @@ async function insertToExcel(mapped) {
       }
     }
 
-    if (dataRows.length === 0) {
-      console.log("Keine passenden Datenzeilen gefunden.");
-      return;
-    }
+    if (dataRows.length === 0) return;
 
     const range = sheet.getRangeByIndexes(startRow, 0, dataRows.length, colCount);
     range.values = dataRows;
