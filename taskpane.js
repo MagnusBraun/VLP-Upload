@@ -13,10 +13,10 @@ function normalizeLabel(label) {
 }
 
 const columnAliases = {
-  "Kabelnummer": ["kabelnummer", "kabel-nr", "kabelnr", "knr", "kabnr"],
+  "Kabelnummer": ["kabelnummer", "kabel-nr", "kabelnr"],
   "Kabeltyp": ["typ", "kabel-typ", "kabeltype"],
   "Trommelnummer": ["trommelnummer", "trommel-nr", "trommel-nummer"],
-  "Durchmesser": ["durchmesser", "ø", "dm", "ømm", "Ømm", "Ø"],
+  "Durchmesser": ["durchmesser", "ø", "ømm", "Ømm", "Ø"],
   "von Ort": ["von ort"],
   "bis Ort": ["bis ort"],
   "von km": ["von km", "von kilometer"],
