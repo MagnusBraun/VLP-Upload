@@ -358,100 +358,76 @@ async function detectAndHandleDuplicates(context, sheet, headers) {
   usedRange.load(["values", "rowCount", "columnCount"]);
   await context.sync();
 
-  const rows = usedRange.values.slice(1); // ohne Header
+  const rows = usedRange.values.slice(1); // ohne Kopfzeile
   const rowMap = new Map();
 
   rows.forEach((row, idx) => {
-    const rowKey = keyIndexes
+    // Prüfe, ob Zeile komplett leer ist
+    const isEmpty = row.every(cell => (cell ?? "").toString().trim() === "");
+    if (isEmpty) return;
+
+    const key = keyIndexes
       .map(i => (row[i] ?? "").toString().trim().toLowerCase())
       .join("|");
 
-    if (!rowKey || rowKey.split("|").length !== keyIndexes.length) return;
-    if (!rowMap.has(rowKey)) rowMap.set(rowKey, []);
-    rowMap.get(rowKey).push(idx + 2); // Excel-Zeilennummer (1-based)
+    if (!key || key.split("|").length !== keyIndexes.length) return;
+
+    if (!rowMap.has(key)) rowMap.set(key, []);
+    rowMap.get(key).push(idx + 2); // Excel-Zeile (1-based + Header)
   });
 
   const dupGroups = Array.from(rowMap.values()).filter(g => g.length > 1);
   if (dupGroups.length === 0) return;
 
+  // 🟨 Markieren
   for (const group of dupGroups) {
     for (const rowNum of group) {
       sheet.getRange(`A${rowNum}:Z${rowNum}`).format.fill.color = "#FFFF99";
     }
   }
 
-  await context.sync();
+  const confirm = await Office.context.ui.displayDialogAsync ?
+    await new Promise((resolve) => {
+      Office.context.ui.displayDialogAsync('about:blank', { height: 30, width: 40 }, (result) => {
+        const dialog = result.value;
+        dialog.messageParent(`⚠️ Es wurden ${dupGroups.length} Duplikate erkannt.`);
+        dialog.addEventHandler(Office.EventType.DialogMessageReceived, (arg) => {
+          dialog.close();
+          resolve(arg.message === "ok");
+        });
+      });
+    }) :
+    window.confirm(
+      `⚠️ Es wurden ${dupGroups.length} Duplikate erkannt:\n\n` +
+      dupGroups.map(g => `• Zeilen: ${g.join(", ")}`).join("\n") +
+      "\n\nMöchtest du alle Duplikate (bis auf einen Eintrag pro Gruppe) entfernen?"
+    );
 
-  // 🔔 Benutzerdefiniertes Dialog-Overlay
-  const overlay = document.createElement("div");
-  overlay.style.position = "fixed";
-  overlay.style.top = "0";
-  overlay.style.left = "0";
-  overlay.style.width = "100%";
-  overlay.style.height = "100%";
-  overlay.style.backgroundColor = "rgba(0,0,0,0.4)";
-  overlay.style.zIndex = "9999";
-  overlay.style.display = "flex";
-  overlay.style.alignItems = "center";
-  overlay.style.justifyContent = "center";
-
-  const box = document.createElement("div");
-  box.style.background = "#fff";
-  box.style.padding = "20px";
-  box.style.borderRadius = "8px";
-  box.style.boxShadow = "0 2px 10px rgba(0,0,0,0.2)";
-  box.style.maxWidth = "400px";
-  box.style.textAlign = "center";
-
-  const msg = document.createElement("p");
-  msg.textContent = `⚠️ Es wurden ${dupGroups.length} Duplikate erkannt. Möchtest du alle Duplikate (bis auf einen pro Gruppe) entfernen?`;
-  msg.style.marginBottom = "20px";
-  box.appendChild(msg);
-
-  const keepBtn = document.createElement("button");
-  keepBtn.textContent = "Beibehalten";
-  keepBtn.style.marginRight = "10px";
-  keepBtn.onclick = () => overlay.remove();
-
-  const deleteBtn = document.createElement("button");
-  deleteBtn.textContent = "Duplikate löschen";
-  deleteBtn.onclick = async () => {
-    overlay.remove();
+  if (confirm) {
     const deleteRows = dupGroups.flatMap(g => g.slice(1)).sort((a, b) => b - a);
     for (const row of deleteRows) {
       sheet.getRange(`A${row}:Z${row}`).delete(Excel.DeleteShiftDirection.up);
     }
     await context.sync();
-  };
-
-  box.appendChild(keepBtn);
-  box.appendChild(deleteBtn);
-  overlay.appendChild(box);
-  document.body.appendChild(overlay);
-  // 🧽 Gelbe Duplikat-Markierungen entfernen nach Entscheidung
-  const yellow = "#FFFF99";
-  const resetRange = sheet.getUsedRange();
-  resetRange.format.fill.load("color");
-  await context.sync();
-  
-  const rowsToClear = [];
-  
-  for (let i = 0; i < resetRange.format.fill.color.length; i++) {
-    const row = resetRange.format.fill.color[i];
-    if (!Array.isArray(row)) continue;
-    const isDupeMarked = row.some(cellColor =>
-      typeof cellColor === "string" && cellColor.toUpperCase() === yellow
-    );
-    if (isDupeMarked) rowsToClear.push(i + 1);
   }
-  
-  for (const rowNum of rowsToClear) {
-    const rowRange = sheet.getRange(`A${rowNum}:Z${rowNum}`);
-    rowRange.format.fill.clear();
+
+  // 🧼 Markierung entfernen
+  const resetRange = sheet.getUsedRange();
+  const formatData = await resetRange.getCellProperties(["format/fill/color"]);
+  await context.sync();
+
+  for (let r = 0; r < resetRange.rowCount; r++) {
+    const rowProps = formatData[r];
+    const isYellow = rowProps.some(cell =>
+      typeof cell.format?.fill?.color === "string" &&
+      cell.format.fill.color.toUpperCase() === "#FFFF99"
+    );
+    if (isYellow) {
+      sheet.getRangeByIndexes(r, 0, 1, resetRange.columnCount).format.fill.clear();
+    }
   }
   await context.sync();
 }
-
 
 function showError(msg) {
   const preview = document.getElementById("preview");
