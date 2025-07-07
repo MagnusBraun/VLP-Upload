@@ -342,7 +342,20 @@ async function insertToExcel(mapped) {
       await context.sync();
     }
 
-await removeEmptyRows(context, sheet); // ⬅️ Leere Zeilen entfernen
+// Leere Zeilen entfernen
+const fullRange = sheet.getUsedRange();
+fullRange.load(["values", "rowCount"]);
+await context.sync();
+
+const emptyRows = fullRange.values.map((row, idx) => ({
+  isEmpty: row.every(cell => cell === "" || cell === null),
+  idx
+})).filter(r => r.isEmpty).map(r => r.idx + 1).sort((a, b) => b - a); // Excel 1-based
+
+for (const row of emptyRows) {
+  sheet.getRange(`A${row}:Z${row}`).delete(Excel.DeleteShiftDirection.up);
+}
+await context.sync();
 await detectAndHandleDuplicates(context, sheet, excelHeaders);  });
 }
 async function removeEmptyRows(context, sheet) {
@@ -421,9 +434,9 @@ function showConfirmDialog(message, onConfirm, onCancel) {
 
 async function detectAndHandleDuplicates(context, sheet, headers) {
   const keyCols = ["Kabelnummer", "von Ort", "von km", "bis Ort", "bis km"];
-  const keyIndexes = keyCols
-    .map(key => headers.findIndex(h => normalizeLabel(h) === normalizeLabel(key)))
-    .filter(i => i !== -1);
+  const keyIndexes = keyCols.map(k =>
+    headers.findIndex(h => normalizeLabel(h) === normalizeLabel(k))
+  ).filter(i => i !== -1);
 
   if (keyIndexes.length < 2) return;
 
@@ -435,65 +448,85 @@ async function detectAndHandleDuplicates(context, sheet, headers) {
   const rowMap = new Map();
 
   rows.forEach((row, idx) => {
-    const rowKey = keyIndexes.map(i => (row[i] ?? "").toString().trim().toLowerCase()).join("|");
-    if (!rowKey || rowKey.split("|").length !== keyIndexes.length) return;
-    if (!rowMap.has(rowKey)) rowMap.set(rowKey, []);
-    rowMap.get(rowKey).push(idx + 2); // Excel-Zeile (1-basiert)
+    const key = keyIndexes.map(i => (row[i] || "").toString().trim().toLowerCase()).join("|");
+    if (key && !rowMap.has(key)) rowMap.set(key, []);
+    if (key) rowMap.get(key).push(idx + 2); // +2 = 1-based row + skip header
   });
 
-  const dupGroups = Array.from(rowMap.values()).filter(g => g.length > 1);
+  const dupGroups = [...rowMap.values()].filter(group => group.length > 1);
   if (dupGroups.length === 0) return;
 
-  const yellow = "#FFFF99";
+  // Nur betroffene Zeilen gelb markieren
   for (const group of dupGroups) {
     for (const rowNum of group) {
-      sheet.getRange(`A${rowNum}:Z${rowNum}`).format.fill.color = yellow;
+      sheet.getRange(`A${rowNum}:Z${rowNum}`).format.fill.color = "#FFFF99";
     }
   }
 
-  await context.sync();
-
-  // Erstelle benutzerdefiniertes Dialog-Overlay
+  // ➕ Dialog für Auswahl
   const overlay = document.createElement("div");
-  overlay.style.position = "fixed";
-  overlay.style.top = "0";
-  overlay.style.left = "0";
-  overlay.style.width = "100%";
-  overlay.style.height = "100%";
-  overlay.style.backgroundColor = "rgba(0,0,0,0.4)";
-  overlay.style.zIndex = "9999";
+  Object.assign(overlay.style, {
+    position: "fixed", top: "0", left: "0", width: "100%", height: "100%",
+    backgroundColor: "rgba(0,0,0,0.4)", zIndex: "9999", padding: "2em"
+  });
 
   const box = document.createElement("div");
-  box.style.background = "white";
-  box.style.padding = "2em";
-  box.style.borderRadius = "8px";
-  box.style.maxWidth = "400px";
-  box.style.margin = "100px auto";
-  box.innerHTML = `
-    <h3>⚠️ Duplikate erkannt</h3>
-    <p>${dupGroups.length} Gruppen mit mehrfach vorhandenen Kabeln.</p>
-    <p>Möchtest du die Duplikate löschen?</p>
-    <button id="confirmDelete" style="margin-right:1em;">Duplikate löschen</button>
-    <button id="keepAll">Beibehalten</button>
-  `;
+  Object.assign(box.style, {
+    background: "white", padding: "1.5em", borderRadius: "8px",
+    maxWidth: "500px", margin: "auto"
+  });
 
-  overlay.appendChild(box);
-  document.body.appendChild(overlay);
+  const title = document.createElement("h3");
+  title.textContent = `⚠️ ${dupGroups.length} Duplikate erkannt`;
+  box.appendChild(title);
 
-  document.getElementById("confirmDelete").onclick = async () => {
-    const deleteRows = dupGroups.flatMap(g => g.slice(1)).sort((a, b) => b - a);
-    for (const row of deleteRows) {
-      sheet.getRange(`A${row}:Z${row}`).delete(Excel.DeleteShiftDirection.up);
+  const msg = document.createElement("p");
+  msg.innerText = "Duplikate wurden gelb markiert. Was möchtest du tun?";
+  box.appendChild(msg);
+
+  const btns = document.createElement("div");
+
+  const keepBtn = document.createElement("button");
+  keepBtn.textContent = "Beibehalten";
+  keepBtn.onclick = async () => {
+    for (const group of dupGroups) {
+      for (const rowNum of group) {
+        sheet.getRange(`A${rowNum}:Z${rowNum}`).format.fill.clear();
+      }
     }
     overlay.remove();
     await context.sync();
   };
 
-  document.getElementById("keepAll").onclick = async () => {
+  const deleteBtn = document.createElement("button");
+  deleteBtn.textContent = "Duplikate löschen";
+  deleteBtn.style.marginLeft = "1em";
+  deleteBtn.onclick = async () => {
+    const rowsToDelete = dupGroups.flatMap(g => g.slice(1)).sort((a, b) => b - a);
+    for (const rowNum of rowsToDelete) {
+      sheet.getRange(`A${rowNum}:Z${rowNum}`).delete(Excel.DeleteShiftDirection.up);
+    }
+
+    // Auch übriggebliebene Markierungen entfernen
+    const remainingRows = sheet.getUsedRange();
+    remainingRows.load("rowCount");
+    await context.sync();
+    const count = remainingRows.rowCount;
+    if (count > 1) {
+      sheet.getRangeByIndexes(1, 0, count - 1, headers.length).format.fill.clear();
+    }
+
     overlay.remove();
     await context.sync();
   };
+
+  btns.appendChild(keepBtn);
+  btns.appendChild(deleteBtn);
+  box.appendChild(btns);
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
 }
+
 
 
 function showError(msg) {
