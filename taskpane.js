@@ -339,19 +339,3 @@ function showError(msg) {
   const preview = document.getElementById("preview");
   preview.innerHTML = `<div style="color:red;font-weight:bold">${msg}</div>`;
 }
-
-
-  "Kabelnummer": ["kabelnummer", "kabel-nr", "kabelnr"],
-  "Kabeltyp": ["typ", "kabel-typ", "kabeltype"],
-  "Trommelnummer": ["trommelnummer", "trommel-nr", "trommel-nummer"],
-  "Durchmesser": ["durchmesser", "ø", "ømm", "Ømm", "Ø"],
-  "von Ort": ["von ort"],
-  "bis Ort": ["bis ort"],
-  "von km": ["von km", "von kilometer"],
-  "bis km": ["bis km", "bis kilometer"],
-  "Metr. (von)": ["metr. von"],
-  "Metr. (bis)": ["metr. bis"],
-  "SOLL": ["soll"],
-  "IST": ["ist"],
-  "Verlegeart": ["verlegeart"],
-  "Bemerkung": ["bemerkung", "bemerkungen"]
