@@ -310,24 +310,23 @@ async function insertToExcel(mapped) {
     range.format.horizontalAlignment = "Left";
 
     await context.sync();
-
-    // 📌 Neue SORTIERUNG nach "Kabelnummer"
+       // 📌 Neue SORTIERUNG nach "Kabelnummer"
+    const updatedUsedRange = sheet.getUsedRange();
     const headerRow = sheet.getRange("A1:Z1");
+    
+    updatedUsedRange.load("rowCount");
     headerRow.load("values");
-    await context.sync();
+    
+    await context.sync();  // Jetzt sind BEIDE geladen ✅
     
     const headers = headerRow.values[0];
     const kabelIndex = headers.findIndex(h => normalizeLabel(h) === normalizeLabel("Kabelnummer"));
     
     if (kabelIndex !== -1) {
-      const updatedUsedRange = sheet.getUsedRange();
-      updatedUsedRange.load("rowCount");
-      await context.sync();  // ⬅ unbedingt notwendig nach load
-    
       const totalRows = updatedUsedRange.rowCount;
       const sortRange = sheet.getRangeByIndexes(1, 0, totalRows - 1, colCount);
       sortRange.sort.apply([{ key: kabelIndex, ascending: true }]);
-      await context.sync();  // damit Sortierung auch angewendet wird
+      await context.sync(); // Sortierung aktivieren
     } else {
       console.log("Spalte 'Kabelnummer' nicht gefunden – Sortierung übersprungen.");
     }
@@ -340,3 +339,19 @@ function showError(msg) {
   const preview = document.getElementById("preview");
   preview.innerHTML = `<div style="color:red;font-weight:bold">${msg}</div>`;
 }
+
+
+  "Kabelnummer": ["kabelnummer", "kabel-nr", "kabelnr"],
+  "Kabeltyp": ["typ", "kabel-typ", "kabeltype"],
+  "Trommelnummer": ["trommelnummer", "trommel-nr", "trommel-nummer"],
+  "Durchmesser": ["durchmesser", "ø", "ømm", "Ømm", "Ø"],
+  "von Ort": ["von ort"],
+  "bis Ort": ["bis ort"],
+  "von km": ["von km", "von kilometer"],
+  "bis km": ["bis km", "bis kilometer"],
+  "Metr. (von)": ["metr. von"],
+  "Metr. (bis)": ["metr. bis"],
+  "SOLL": ["soll"],
+  "IST": ["ist"],
+  "Verlegeart": ["verlegeart"],
+  "Bemerkung": ["bemerkung", "bemerkungen"]
