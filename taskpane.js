@@ -435,13 +435,14 @@ async function detectAndHandleDuplicates(context, sheet, headers) {
   await context.sync();
   
   const rowsToClear = [];
-  const resetValues = resetRange.format.fill.color;
   
-  for (let i = 0; i < resetValues.length; i++) {
-    const row = resetValues[i];
-    if (Array.isArray(row) && row.some(cellColor => cellColor?.toUpperCase() === yellow)) {
-      rowsToClear.push(i + 1);
-    }
+  for (let i = 0; i < resetRange.format.fill.color.length; i++) {
+    const row = resetRange.format.fill.color[i];
+    if (!Array.isArray(row)) continue;
+    const isDupeMarked = row.some(cellColor =>
+      typeof cellColor === "string" && cellColor.toUpperCase() === yellow
+    );
+    if (isDupeMarked) rowsToClear.push(i + 1);
   }
   
   for (const rowNum of rowsToClear) {
