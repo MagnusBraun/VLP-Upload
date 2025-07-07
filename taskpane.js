@@ -342,8 +342,30 @@ async function insertToExcel(mapped) {
       await context.sync();
     }
 
-    await detectAndHandleDuplicates(context, sheet, excelHeaders);
-  });
+await removeEmptyRows(context, sheet); // ⬅️ Leere Zeilen entfernen
+await detectAndHandleDuplicates(context, sheet, excelHeaders);  });
+}
+async function removeEmptyRows(context, sheet) {
+  const usedRange = sheet.getUsedRange();
+  usedRange.load(["values", "rowCount", "columnCount"]);
+  await context.sync();
+
+  const rows = usedRange.values;
+  const rowCount = usedRange.rowCount;
+  const colCount = usedRange.columnCount;
+
+  const rowsToDelete = [];
+
+  for (let i = 1; i < rowCount; i++) { // Zeile 0 = Header
+    const isEmpty = rows[i].every(cell => !cell || cell.toString().trim() === "");
+    if (isEmpty) rowsToDelete.push(i + 1); // Excel ist 1-basiert
+  }
+
+  for (const r of rowsToDelete.reverse()) {
+    sheet.getRange(`A${r}:Z${r}`).delete(Excel.DeleteShiftDirection.up);
+  }
+
+  await context.sync();
 }
 
 function showConfirmDialog(message, onConfirm, onCancel) {
