@@ -315,14 +315,21 @@ async function insertToExcel(mapped) {
     const headerRow = sheet.getRange("A1:Z1");
     headerRow.load("values");
     await context.sync();
-
+    
     const headers = headerRow.values[0];
     const kabelIndex = headers.findIndex(h => normalizeLabel(h) === normalizeLabel("Kabelnummer"));
-
+    
     if (kabelIndex !== -1) {
-      const totalRows = sheet.getUsedRange().rowCount;
+      const updatedUsedRange = sheet.getUsedRange();
+      updatedUsedRange.load("rowCount");
+      await context.sync();  // ⬅ unbedingt notwendig nach load
+    
+      const totalRows = updatedUsedRange.rowCount;
       const sortRange = sheet.getRangeByIndexes(1, 0, totalRows - 1, colCount);
       sortRange.sort.apply([{ key: kabelIndex, ascending: true }]);
+      await context.sync();  // damit Sortierung auch angewendet wird
+    } else {
+      console.log("Spalte 'Kabelnummer' nicht gefunden – Sortierung übersprungen.");
     }
 
     await context.sync();
