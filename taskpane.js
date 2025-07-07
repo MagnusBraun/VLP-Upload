@@ -442,16 +442,18 @@ async function detectAndHandleDuplicates(context, sheet, headers) {
         dupGroups.map(g => `• Zeilen: ${g.join(", ")}`).join("\n") +
         "\n\nMöchtest du alle Duplikate (bis auf einen Eintrag pro Gruppe) entfernen?",
       async () => {
+        c// 🧽 Zuerst ALLE Duplikate zurück auf weiß (noch vor dem Löschen!)
+        for (const group of dupGroups) {
+          for (const rowNum of group) {
+            sheet.getRange(`A${rowNum}:Z${rowNum}`).format.fill.color = "white";
+          }
+        }
+        await context.sync();
+        
+        // Dann löschen
         const deleteRows = dupGroups.flatMap(g => g.slice(1)).sort((a, b) => b - a);
         for (const row of deleteRows) {
           sheet.getRange(`A${row}:Z${row}`).delete(Excel.DeleteShiftDirection.up);
-        }
-        await context.sync();
-
-        // 🧽 Danach: verbleibende gelbe Zellen zurück auf weiß
-        const remaining = dupGroups.map(g => g[0]);
-        for (const row of remaining) {
-          sheet.getRange(`A${row}:Z${row}`).format.fill.color = "white";
         }
         await context.sync();
         resolve();
