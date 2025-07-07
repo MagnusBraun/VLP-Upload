@@ -428,6 +428,28 @@ async function detectAndHandleDuplicates(context, sheet, headers) {
   box.appendChild(deleteBtn);
   overlay.appendChild(box);
   document.body.appendChild(overlay);
+  // 🧽 Gelbe Duplikat-Markierungen entfernen nach Entscheidung
+  const yellow = "#FFFF99";
+  const resetRange = sheet.getUsedRange();
+  resetRange.format.fill.load("color");
+  await context.sync();
+  
+  const rowsToClear = [];
+  const resetValues = resetRange.format.fill.color;
+  
+  for (let i = 0; i < resetValues.length; i++) {
+    const row = resetValues[i];
+    if (Array.isArray(row) && row.some(cellColor => cellColor?.toUpperCase() === yellow)) {
+      rowsToClear.push(i + 1); // 1-based row index
+    }
+  }
+  
+  for (const rowNum of rowsToClear) {
+    const rowRange = sheet.getRange(`A${rowNum}:Z${rowNum}`);
+    rowRange.format.fill.color = "white";
+  }
+  await context.sync();
+
 }
 
 
