@@ -440,16 +440,15 @@ async function detectAndHandleDuplicates(context, sheet, headers) {
   for (let i = 0; i < resetValues.length; i++) {
     const row = resetValues[i];
     if (Array.isArray(row) && row.some(cellColor => cellColor?.toUpperCase() === yellow)) {
-      rowsToClear.push(i + 1); // 1-based row index
+      rowsToClear.push(i + 1);
     }
   }
   
   for (const rowNum of rowsToClear) {
     const rowRange = sheet.getRange(`A${rowNum}:Z${rowNum}`);
-    rowRange.format.fill.color = "white";
+    rowRange.format.fill.clear();
   }
   await context.sync();
-
 }
 
 
