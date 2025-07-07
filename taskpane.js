@@ -371,7 +371,60 @@ async function insertToExcel(mapped) {
     } else {
       console.log("Spalte 'Kabelnummer' nicht gefunden – Sortierung übersprungen.");
     }
+
+    // ➕ Duplikaterkennung nach dem Einfügen
+    await detectAndHandleDuplicates(context, sheet, excelHeaders);
   });
+}
+
+async function detectAndHandleDuplicates(context, sheet, headers) {
+  const keyCols = ["Kabelnummer", "von Ort", "von km", "bis Ort", "bis km"];
+  const keyIndexes = keyCols
+    .map(key => headers.findIndex(h => normalizeLabel(h) === normalizeLabel(key)))
+    .filter(i => i !== -1);
+
+  if (keyIndexes.length < 2) return;
+
+  const usedRange = sheet.getUsedRange();
+  usedRange.load(["values", "rowCount", "columnCount"]);
+  await context.sync();
+
+  const values = usedRange.values.slice(1);
+  const dupeMap = new Map();
+
+  values.forEach((row, idx) => {
+    const key = keyIndexes.map(i => (row[i] || "").toString().trim().toLowerCase()).join("|");
+    if (dupeMap.has(key)) {
+      dupeMap.get(key).push(idx + 2);
+    } else {
+      dupeMap.set(key, [idx + 2]);
+    }
+  });
+
+  const dupeGroups = Array.from(dupeMap.values()).filter(g => g.length > 1);
+  if (dupeGroups.length === 0) return;
+
+  const flatDupes = dupeGroups.flat();
+  flatDupes.forEach(z => {
+    const range = sheet.getRange(`A${z}:Z${z}`);
+    range.format.fill.color = "#FFFF99"; // Gelb
+  });
+
+  const msg = `⚠️ Es wurden ${dupeGroups.length} Duplikatgruppen erkannt:\n\n` +
+              dupeGroups.map(g => `• Zeilen: ${g.join(", ")}`).join("\n") +
+              "\n\nDuplikate entfernen? (eine Version pro Gruppe wird behalten)";
+
+  const confirmDelete = window.confirm(msg);
+
+  if (confirmDelete) {
+    const toDelete = dupeGroups.map(g => g.slice(1)).flat().sort((a, b) => b - a);
+    toDelete.forEach(rowNum => {
+      sheet.getRange(`A${rowNum}:Z${rowNum}`).delete(Excel.DeleteShiftDirection.up);
+    });
+    await context.sync();
+  } else {
+    await context.sync();
+  }
 }
 
 function showError(msg) {
