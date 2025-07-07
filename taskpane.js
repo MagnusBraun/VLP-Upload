@@ -290,12 +290,11 @@ async function insertToExcel(mapped) {
       .map(key => excelHeaders.findIndex(h => normalizeLabel(h) === normalizeLabel(key)))
       .filter(i => i !== -1);
 
-    const existingKeyMap = new Map();
-    existingRows.forEach((row, idx) => {
-      const key = keyIndexes.map(i => (row[i] || "").toString().trim().toLowerCase()).join("|");
-      if (!key) return;
-      existingKeyMap.set(key, idx + 2);
-    });
+    const existingKeys = new Set(
+      existingRows.map(row =>
+        keyIndexes.map(i => (row[i] || "").toString().trim().toLowerCase()).join("|")
+      )
+    );
 
     const dataRows = [];
     const duplicates = [];
@@ -313,53 +312,40 @@ async function insertToExcel(mapped) {
           keyParts.push(val.toString().trim().toLowerCase());
         }
       }
-
       const keyString = keyParts.join("|");
-      if (existingKeyMap.has(keyString)) {
-        duplicates.push({ row, excelRow: existingKeyMap.get(keyString) });
+      if (existingKeys.has(keyString)) {
+        duplicates.push({ key: keyString, row });
       } else {
+        existingKeys.add(keyString);
         dataRows.push(row);
       }
     }
 
-    if (duplicates.length > 0) {
-      const confirm = window.confirm(`⚠️ ${duplicates.length} Duplikate erkannt. Fortfahren & markieren?`);
-      if (!confirm) return;
-
-      for (const dup of duplicates) {
-        const targetRange = sheet.getRange(`A${dup.excelRow}:Z${dup.excelRow}`);
-        targetRange.format.fill.color = "#FFFF99";
-      }
+    const startRow = usedRange.rowCount;
+    if (dataRows.length > 0) {
+      const range = sheet.getRangeByIndexes(startRow, 0, dataRows.length, colCount);
+      range.values = dataRows;
+      range.format.font.name = "Calibri";
+      range.format.font.size = 11;
+      range.format.horizontalAlignment = "Left";
+      await context.sync();
     }
 
-    const startRow = usedRange.rowCount;
-    const range = sheet.getRangeByIndexes(startRow, 0, dataRows.length, colCount);
-    range.values = dataRows;
-    range.format.font.name = "Calibri";
-    range.format.font.size = 11;
-    range.format.horizontalAlignment = "Left";
-
+    // 📊 Nach Kabelnummer sortieren
+    const updatedRange = sheet.getUsedRange();
+    updatedRange.load("rowCount");
     await context.sync();
-
-    const updatedUsedRange = sheet.getUsedRange();
-    const headerRow = sheet.getRange("A1:Z1");
-    updatedUsedRange.load("rowCount");
-    headerRow.load("values");
-    await context.sync();
-
-    const headers = headerRow.values[0];
-    const kabelIndex = headers.findIndex(h => normalizeLabel(h) === normalizeLabel("Kabelnummer"));
+    const kabelIndex = excelHeaders.findIndex(h => normalizeLabel(h) === normalizeLabel("Kabelnummer"));
     if (kabelIndex !== -1) {
-      const totalRows = updatedUsedRange.rowCount;
-      const sortRange = sheet.getRangeByIndexes(1, 0, totalRows - 1, colCount);
+      const sortRange = sheet.getRangeByIndexes(1, 0, updatedRange.rowCount - 1, colCount);
       sortRange.sort.apply([{ key: kabelIndex, ascending: true }]);
       await context.sync();
     }
-    console.log("EXISTING KEYS:", Array.from(existingKeys));
-    console.log("ROW KEY TO TEST:", keyString);
+
     await detectAndHandleDuplicates(context, sheet, excelHeaders);
   });
 }
+
 async function detectAndHandleDuplicates(context, sheet, headers) {
   const keyCols = ["Kabelnummer", "von Ort", "von km", "bis Ort", "bis km"];
   const keyIndexes = keyCols
@@ -376,16 +362,10 @@ async function detectAndHandleDuplicates(context, sheet, headers) {
   const rowMap = new Map();
 
   rows.forEach((row, idx) => {
-    const rowKey = keyIndexes
-      .map(i => (row[i] ?? "").toString().trim().toLowerCase())
-      .join("|");
-
+    const rowKey = keyIndexes.map(i => (row[i] ?? "").toString().trim().toLowerCase()).join("|");
     if (!rowKey || rowKey.split("|").length !== keyIndexes.length) return;
-
-    if (!rowMap.has(rowKey)) {
-      rowMap.set(rowKey, []);
-    }
-    rowMap.get(rowKey).push(idx + 2);
+    if (!rowMap.has(rowKey)) rowMap.set(rowKey, []);
+    rowMap.get(rowKey).push(idx + 2); // Excel-Zeile (1-based + Header)
   });
 
   const dupGroups = Array.from(rowMap.values()).filter(g => g.length > 1);
@@ -398,9 +378,10 @@ async function detectAndHandleDuplicates(context, sheet, headers) {
   }
 
   const confirm = window.confirm(
-    `⚠️ Es wurden ${dupGroups.length} Duplikate erkannt:\n\n` +
+    `⚠️ ${dupGroups.length} Duplikatgruppen erkannt:\n\n` +
     dupGroups.map(g => `• Zeilen: ${g.join(", ")}`).join("\n") +
-    "\n\nMöchtest du alle Duplikate (bis auf einen Eintrag pro Gruppe) entfernen?");
+    `\n\nDuplikate automatisch löschen (alle bis auf den ersten)?`
+  );
 
   if (confirm) {
     const deleteRows = dupGroups.flatMap(g => g.slice(1)).sort((a, b) => b - a);
@@ -410,7 +391,6 @@ async function detectAndHandleDuplicates(context, sheet, headers) {
     await context.sync();
   }
 }
-
 
 function showError(msg) {
   const preview = document.getElementById("preview");
