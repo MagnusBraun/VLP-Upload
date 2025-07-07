@@ -358,11 +358,10 @@ async function detectAndHandleDuplicates(context, sheet, headers) {
   usedRange.load(["values", "rowCount", "columnCount"]);
   await context.sync();
 
-  const rows = usedRange.values.slice(1); // ohne Kopfzeile
+  const rows = usedRange.values.slice(1);
   const rowMap = new Map();
 
   rows.forEach((row, idx) => {
-    // Prüfe, ob Zeile komplett leer ist
     const isEmpty = row.every(cell => (cell ?? "").toString().trim() === "");
     if (isEmpty) return;
 
@@ -373,36 +372,44 @@ async function detectAndHandleDuplicates(context, sheet, headers) {
     if (!key || key.split("|").length !== keyIndexes.length) return;
 
     if (!rowMap.has(key)) rowMap.set(key, []);
-    rowMap.get(key).push(idx + 2); // Excel-Zeile (1-based + Header)
+    rowMap.get(key).push(idx + 2); // Excel rows are 1-based
   });
 
   const dupGroups = Array.from(rowMap.values()).filter(g => g.length > 1);
   if (dupGroups.length === 0) return;
 
-  // 🟨 Markieren
+  // 🟨 Markiere Duplikat-Gruppen gelb
   for (const group of dupGroups) {
     for (const rowNum of group) {
       sheet.getRange(`A${rowNum}:Z${rowNum}`).format.fill.color = "#FFFF99";
     }
   }
+  await context.sync();
 
-  const confirm = await Office.context.ui.displayDialogAsync ?
-    await new Promise((resolve) => {
-      Office.context.ui.displayDialogAsync('about:blank', { height: 30, width: 40 }, (result) => {
-        const dialog = result.value;
-        dialog.messageParent(`⚠️ Es wurden ${dupGroups.length} Duplikate erkannt.`);
-        dialog.addEventHandler(Office.EventType.DialogMessageReceived, (arg) => {
-          dialog.close();
-          resolve(arg.message === "ok");
-        });
-      });
-    }) :
-    window.confirm(
-      `⚠️ Es wurden ${dupGroups.length} Duplikate erkannt:\n\n` +
-      dupGroups.map(g => `• Zeilen: ${g.join(", ")}`).join("\n") +
-      "\n\nMöchtest du alle Duplikate (bis auf einen Eintrag pro Gruppe) entfernen?"
-    );
+  const confirm = window.confirm(
+    `⚠️ Es wurden ${dupGroups.length} Duplikate erkannt:\n\n` +
+    dupGroups.map(g => `• Zeilen: ${g.join(", ")}`).join("\n") +
+    "\n\nMöchtest du alle Duplikate (bis auf einen Eintrag pro Gruppe) entfernen?`
+  );
 
+  // 🧹 Entferne nur gelbe Markierungen nach Entscheidung
+  const allRange = sheet.getUsedRange();
+  const allFormats = allRange.format.fill;
+  await context.sync();
+
+  const resetRows = dupGroups.flat();
+  for (const row of resetRows) {
+    const cellRange = sheet.getRangeByIndexes(row - 1, 0, 1, allRange.columnCount);
+    cellRange.load("format/fill/color");
+    await context.sync();
+    const color = cellRange.format.fill.color;
+    if (color && color.toUpperCase() === "#FFFF99") {
+      cellRange.format.fill.clear();
+    }
+  }
+  await context.sync();
+
+  // 🗑 Duplikate löschen
   if (confirm) {
     const deleteRows = dupGroups.flatMap(g => g.slice(1)).sort((a, b) => b - a);
     for (const row of deleteRows) {
@@ -410,23 +417,6 @@ async function detectAndHandleDuplicates(context, sheet, headers) {
     }
     await context.sync();
   }
-
-  // 🧼 Markierung entfernen
-  const resetRange = sheet.getUsedRange();
-  const formatData = await resetRange.getCellProperties(["format/fill/color"]);
-  await context.sync();
-
-  for (let r = 0; r < resetRange.rowCount; r++) {
-    const rowProps = formatData[r];
-    const isYellow = rowProps.some(cell =>
-      typeof cell.format?.fill?.color === "string" &&
-      cell.format.fill.color.toUpperCase() === "#FFFF99"
-    );
-    if (isYellow) {
-      sheet.getRangeByIndexes(r, 0, 1, resetRange.columnCount).format.fill.clear();
-    }
-  }
-  await context.sync();
 }
 
 function showError(msg) {
