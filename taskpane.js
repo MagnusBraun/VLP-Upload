@@ -26,7 +26,7 @@ const columnAliases = {
   "SOLL": ["soll"],
   "IST": ["ist"],
   "Verlegeart": ["verlegeart"],
-  "Bemerkung": ["bemerkung", "bemerkungen"]
+  "Bemerkung": ["bemerkung", "bemerkungen"],
 };
 
 function loadSavedMappings() {
