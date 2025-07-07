@@ -310,6 +310,22 @@ async function insertToExcel(mapped) {
     range.format.horizontalAlignment = "Left";
 
     await context.sync();
+
+    // 📌 Neue SORTIERUNG nach "Kabelnummer"
+    const headerRow = sheet.getRange("A1:Z1");
+    headerRow.load("values");
+    await context.sync();
+
+    const headers = headerRow.values[0];
+    const kabelIndex = headers.findIndex(h => normalizeLabel(h) === normalizeLabel("Kabelnummer"));
+
+    if (kabelIndex !== -1) {
+      const totalRows = sheet.getUsedRange().rowCount;
+      const sortRange = sheet.getRangeByIndexes(1, 0, totalRows - 1, colCount);
+      sortRange.sort.apply([{ key: kabelIndex, ascending: true }]);
+    }
+
+    await context.sync();
   });
 }
 
