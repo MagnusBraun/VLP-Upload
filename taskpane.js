@@ -358,14 +358,17 @@ async function detectAndHandleDuplicates(context, sheet, headers) {
   usedRange.load(["values", "rowCount", "columnCount"]);
   await context.sync();
 
-  const rows = usedRange.values.slice(1);
+  const rows = usedRange.values.slice(1); // ohne Header
   const rowMap = new Map();
 
   rows.forEach((row, idx) => {
-    const rowKey = keyIndexes.map(i => (row[i] ?? "").toString().trim().toLowerCase()).join("|");
+    const rowKey = keyIndexes
+      .map(i => (row[i] ?? "").toString().trim().toLowerCase())
+      .join("|");
+
     if (!rowKey || rowKey.split("|").length !== keyIndexes.length) return;
     if (!rowMap.has(rowKey)) rowMap.set(rowKey, []);
-    rowMap.get(rowKey).push(idx + 2); // Excel-Zeile (1-based + Header)
+    rowMap.get(rowKey).push(idx + 2); // Excel-Zeilennummer (1-based)
   });
 
   const dupGroups = Array.from(rowMap.values()).filter(g => g.length > 1);
@@ -377,20 +380,56 @@ async function detectAndHandleDuplicates(context, sheet, headers) {
     }
   }
 
-  const confirm = window.confirm(
-    `⚠️ ${dupGroups.length} Duplikatgruppen erkannt:\n\n` +
-    dupGroups.map(g => `• Zeilen: ${g.join(", ")}`).join("\n") +
-    `\n\nDuplikate automatisch löschen (alle bis auf den ersten)?`
-  );
+  await context.sync();
 
-  if (confirm) {
+  // 🔔 Benutzerdefiniertes Dialog-Overlay
+  const overlay = document.createElement("div");
+  overlay.style.position = "fixed";
+  overlay.style.top = "0";
+  overlay.style.left = "0";
+  overlay.style.width = "100%";
+  overlay.style.height = "100%";
+  overlay.style.backgroundColor = "rgba(0,0,0,0.4)";
+  overlay.style.zIndex = "9999";
+  overlay.style.display = "flex";
+  overlay.style.alignItems = "center";
+  overlay.style.justifyContent = "center";
+
+  const box = document.createElement("div");
+  box.style.background = "#fff";
+  box.style.padding = "20px";
+  box.style.borderRadius = "8px";
+  box.style.boxShadow = "0 2px 10px rgba(0,0,0,0.2)";
+  box.style.maxWidth = "400px";
+  box.style.textAlign = "center";
+
+  const msg = document.createElement("p");
+  msg.textContent = `⚠️ Es wurden ${dupGroups.length} Duplikate erkannt. Möchtest du alle Duplikate (bis auf einen pro Gruppe) entfernen?`;
+  msg.style.marginBottom = "20px";
+  box.appendChild(msg);
+
+  const keepBtn = document.createElement("button");
+  keepBtn.textContent = "Beibehalten";
+  keepBtn.style.marginRight = "10px";
+  keepBtn.onclick = () => overlay.remove();
+
+  const deleteBtn = document.createElement("button");
+  deleteBtn.textContent = "Duplikate löschen";
+  deleteBtn.onclick = async () => {
+    overlay.remove();
     const deleteRows = dupGroups.flatMap(g => g.slice(1)).sort((a, b) => b - a);
     for (const row of deleteRows) {
       sheet.getRange(`A${row}:Z${row}`).delete(Excel.DeleteShiftDirection.up);
     }
     await context.sync();
-  }
+  };
+
+  box.appendChild(keepBtn);
+  box.appendChild(deleteBtn);
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
 }
+
 
 function showError(msg) {
   const preview = document.getElementById("preview");
