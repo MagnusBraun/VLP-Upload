@@ -288,7 +288,9 @@ async function insertToExcel(mapped) {
     const existingRows = usedRange.values.slice(1); // ohne Header
 
     const keyCols = ["Kabelnummer", "von Ort", "von km", "bis Ort", "bis km"];
-    const keyIndexes = keyCols.map(key => excelHeaders.findIndex(h => normalizeLabel(h) === normalizeLabel(key)));
+    const keyIndexes = keyCols
+      .map(key => excelHeaders.findIndex(h => normalizeLabel(h) === normalizeLabel(key)))
+      .filter(i => i !== -1); // nur existierende Spalten
 
     const existingKeys = new Set(
       existingRows.map(row =>
@@ -298,6 +300,7 @@ async function insertToExcel(mapped) {
 
     const dataRows = [];
     const duplicates = [];
+
     for (let i = 0; i < maxRows; i++) {
       const row = [];
       const keyParts = [];
@@ -311,6 +314,7 @@ async function insertToExcel(mapped) {
           keyParts.push(val.toString().trim().toLowerCase());
         }
       }
+
       const keyString = keyParts.join("|");
       if (existingKeys.has(keyString)) {
         duplicates.push(row);
@@ -320,11 +324,11 @@ async function insertToExcel(mapped) {
     }
 
     if (duplicates.length > 0) {
-      const confirm = window.confirm(`⚠️ Es wurden ${duplicates.length} Duplikate erkannt.\nTrotzdem fortfahren und markieren?`);
+      const confirm = window.confirm(`⚠️ ${duplicates.length} Duplikate erkannt. Fortfahren & markieren?`);
       if (!confirm) return;
     }
 
-    // ✍ Neue Einträge einfügen
+    // ✍ Einfügen neuer Daten
     const startRow = usedRange.rowCount;
     const range = sheet.getRangeByIndexes(startRow, 0, dataRows.length, colCount);
     range.values = dataRows;
@@ -332,14 +336,16 @@ async function insertToExcel(mapped) {
     range.format.font.size = 11;
     range.format.horizontalAlignment = "Left";
 
-    // 🟨 Vorhandene Duplikate gelb markieren
+    // 🟨 Duplikate gelb markieren
     if (duplicates.length > 0) {
       const dupRange = sheet.getRangeByIndexes(1, 0, existingRows.length, colCount);
       const dupVals = dupRange.values;
       for (let r = 0; r < dupVals.length; r++) {
         const row = dupVals[r];
-        const key = keyIndexes.map(i => (row[i] || "").toString().trim().toLowerCase()).join("|");
-        if (duplicates.some(dup => key === keyIndexes.map((_, i) => dup[keyIndexes[i]]?.toString().trim().toLowerCase()).join("|"))) {
+        const rowKey = keyIndexes.map(i => (row[i] || "").toString().trim().toLowerCase()).join("|");
+        if (duplicates.some(dup =>
+          rowKey === keyIndexes.map((_, i) => dup[keyIndexes[i]]?.toString().trim().toLowerCase()).join("|")
+        )) {
           dupRange.getRow(r).format.fill.color = "#FFFF99";
         }
       }
