@@ -274,6 +274,17 @@ async function insertToExcel(mapped) {
     usedRange.load(["values", "rowCount"]);
     await context.sync();
 
+    // 🔄 Zuordnung laden
+    const saved = loadSavedMappings();
+    let headerMap = createHeaderMapWithAliases(excelHeaders, Object.keys(mapped), columnAliases);
+    for (const key in saved) {
+      if (headerMap[key] === null && saved[key]) {
+        headerMap[key] = saved[key];
+      }
+    }
+    headerMap = await resolveMissingMappings(headerMap, Object.keys(mapped));
+    saveMappings(headerMap);
+
     const existingRows = usedRange.values.slice(1); // ohne Header
 
     const keyCols = ["Kabelnummer", "von Ort", "von km", "bis Ort", "bis km"];
@@ -313,6 +324,7 @@ async function insertToExcel(mapped) {
       if (!confirm) return;
     }
 
+    // ✍ Neue Einträge einfügen
     const startRow = usedRange.rowCount;
     const range = sheet.getRangeByIndexes(startRow, 0, dataRows.length, colCount);
     range.values = dataRows;
@@ -320,6 +332,7 @@ async function insertToExcel(mapped) {
     range.format.font.size = 11;
     range.format.horizontalAlignment = "Left";
 
+    // 🟨 Vorhandene Duplikate gelb markieren
     if (duplicates.length > 0) {
       const dupRange = sheet.getRangeByIndexes(1, 0, existingRows.length, colCount);
       const dupVals = dupRange.values;
@@ -334,10 +347,9 @@ async function insertToExcel(mapped) {
 
     await context.sync();
 
-    // 📌 SORTIERUNG nach „Kabelnummer“
+    // 📊 SORTIERUNG nach „Kabelnummer“
     const updatedUsedRange = sheet.getUsedRange();
     const headerRow = sheet.getRange("A1:Z1");
-
     updatedUsedRange.load("rowCount");
     headerRow.load("values");
     await context.sync();
