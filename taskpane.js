@@ -355,7 +355,8 @@ async function insertToExcel(mapped) {
       sortRange.sort.apply([{ key: kabelIndex, ascending: true }]);
       await context.sync();
     }
-
+    console.log("EXISTING KEYS:", Array.from(existingKeys));
+    console.log("ROW KEY TO TEST:", keyString);
     await detectAndHandleDuplicates(context, sheet, excelHeaders);
   });
 }
