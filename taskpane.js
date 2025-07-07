@@ -257,6 +257,108 @@ function previewInTable(mapped) {
   preview.appendChild(resetBtn);
 }
 
+async function insertToExcel(mapped) {
+  await Excel.run(async (context) => {
+    const sheet = context.workbook.worksheets.getActiveWorksheet();
+    const headerRange = sheet.getRange("A1:Z1");
+    headerRange.load("values");
+    await context.sync();
+
+    const excelHeaders = headerRange.values?.[0] || [];
+    if (excelHeaders.length === 0) return;
+
+    const colCount = excelHeaders.length;
+    const maxRows = Math.max(...Object.values(mapped).map(col => col.length));
+
+    const usedRange = sheet.getUsedRange();
+    usedRange.load(["values", "rowCount"]);
+    await context.sync();
+
+    const saved = loadSavedMappings();
+    let headerMap = createHeaderMapWithAliases(excelHeaders, Object.keys(mapped), columnAliases);
+    for (const key in saved) {
+      if (headerMap[key] === null && saved[key]) {
+        headerMap[key] = saved[key];
+      }
+    }
+    headerMap = await resolveMissingMappings(headerMap, Object.keys(mapped));
+    saveMappings(headerMap);
+
+    const existingRows = usedRange.values.slice(1);
+    const keyCols = ["Kabelnummer", "von Ort", "von km", "bis Ort", "bis km"];
+    const keyIndexes = keyCols
+      .map(key => excelHeaders.findIndex(h => normalizeLabel(h) === normalizeLabel(key)))
+      .filter(i => i !== -1);
+
+    const existingKeyMap = new Map();
+    existingRows.forEach((row, idx) => {
+      const key = keyIndexes.map(i => (row[i] || "").toString().trim().toLowerCase()).join("|");
+      if (!key) return;
+      existingKeyMap.set(key, idx + 2);
+    });
+
+    const dataRows = [];
+    const duplicates = [];
+
+    for (let i = 0; i < maxRows; i++) {
+      const row = [];
+      const keyParts = [];
+      for (let h = 0; h < colCount; h++) {
+        const excelHeader = excelHeaders[h];
+        const pdfKey = headerMap[excelHeader];
+        const colData = pdfKey ? mapped[pdfKey] : [];
+        const val = colData[i] || "";
+        row.push(val);
+        if (keyIndexes.includes(h)) {
+          keyParts.push(val.toString().trim().toLowerCase());
+        }
+      }
+
+      const keyString = keyParts.join("|");
+      if (existingKeyMap.has(keyString)) {
+        duplicates.push({ row, excelRow: existingKeyMap.get(keyString) });
+      } else {
+        dataRows.push(row);
+      }
+    }
+
+    if (duplicates.length > 0) {
+      const confirm = window.confirm(`⚠️ ${duplicates.length} Duplikate erkannt. Fortfahren & markieren?`);
+      if (!confirm) return;
+
+      for (const dup of duplicates) {
+        const targetRange = sheet.getRange(`A${dup.excelRow}:Z${dup.excelRow}`);
+        targetRange.format.fill.color = "#FFFF99";
+      }
+    }
+
+    const startRow = usedRange.rowCount;
+    const range = sheet.getRangeByIndexes(startRow, 0, dataRows.length, colCount);
+    range.values = dataRows;
+    range.format.font.name = "Calibri";
+    range.format.font.size = 11;
+    range.format.horizontalAlignment = "Left";
+
+    await context.sync();
+
+    const updatedUsedRange = sheet.getUsedRange();
+    const headerRow = sheet.getRange("A1:Z1");
+    updatedUsedRange.load("rowCount");
+    headerRow.load("values");
+    await context.sync();
+
+    const headers = headerRow.values[0];
+    const kabelIndex = headers.findIndex(h => normalizeLabel(h) === normalizeLabel("Kabelnummer"));
+    if (kabelIndex !== -1) {
+      const totalRows = updatedUsedRange.rowCount;
+      const sortRange = sheet.getRangeByIndexes(1, 0, totalRows - 1, colCount);
+      sortRange.sort.apply([{ key: kabelIndex, ascending: true }]);
+      await context.sync();
+    }
+
+    await detectAndHandleDuplicates(context, sheet, excelHeaders);
+  });
+}
 async function detectAndHandleDuplicates(context, sheet, headers) {
   const keyCols = ["Kabelnummer", "von Ort", "von km", "bis Ort", "bis km"];
   const keyIndexes = keyCols
@@ -277,18 +379,17 @@ async function detectAndHandleDuplicates(context, sheet, headers) {
       .map(i => (row[i] ?? "").toString().trim().toLowerCase())
       .join("|");
 
-    if (rowKey === "" || rowKey.split("|").length !== keyIndexes.length) return;
+    if (!rowKey || rowKey.split("|").length !== keyIndexes.length) return;
 
     if (!rowMap.has(rowKey)) {
       rowMap.set(rowKey, []);
     }
-    rowMap.get(rowKey).push(idx + 2); // Excel-Zeile (1-based + Header)
+    rowMap.get(rowKey).push(idx + 2);
   });
 
   const dupGroups = Array.from(rowMap.values()).filter(g => g.length > 1);
   if (dupGroups.length === 0) return;
 
-  // 🔶 Markieren
   for (const group of dupGroups) {
     for (const rowNum of group) {
       sheet.getRange(`A${rowNum}:Z${rowNum}`).format.fill.color = "#FFFF99";
@@ -309,125 +410,6 @@ async function detectAndHandleDuplicates(context, sheet, headers) {
   }
 }
 
-async function insertToExcel(mapped) {
-  await Excel.run(async (context) => {
-    const sheet = context.workbook.worksheets.getActiveWorksheet();
-    const headerRange = sheet.getRange("A1:Z1");
-    headerRange.load("values");
-    await context.sync();
-
-    const excelHeaders = headerRange.values?.[0] || [];
-    if (excelHeaders.length === 0) return;
-
-    const colCount = excelHeaders.length;
-    const maxRows = Math.max(...Object.values(mapped).map(col => col.length));
-
-    const usedRange = sheet.getUsedRange();
-    usedRange.load(["values", "rowCount"]);
-    await context.sync();
-
-    // 🔄 Zuordnung laden
-    const saved = loadSavedMappings();
-    let headerMap = createHeaderMapWithAliases(excelHeaders, Object.keys(mapped), columnAliases);
-    for (const key in saved) {
-      if (headerMap[key] === null && saved[key]) {
-        headerMap[key] = saved[key];
-      }
-    }
-    headerMap = await resolveMissingMappings(headerMap, Object.keys(mapped));
-    saveMappings(headerMap);
-
-    const existingRows = usedRange.values.slice(1); // ohne Header
-
-    const keyCols = ["Kabelnummer", "von Ort", "von km", "bis Ort", "bis km"];
-    const keyIndexes = keyCols
-      .map(key => excelHeaders.findIndex(h => normalizeLabel(h) === normalizeLabel(key)))
-      .filter(i => i !== -1); // nur existierende Spalten
-
-    const existingKeys = new Set(
-      existingRows.map(row =>
-        keyIndexes.map(i => (row[i] || "").toString().trim().toLowerCase()).join("|")
-      )
-    );
-
-    const dataRows = [];
-    const duplicates = [];
-
-    for (let i = 0; i < maxRows; i++) {
-      const row = [];
-      const keyParts = [];
-      for (let h = 0; h < colCount; h++) {
-        const excelHeader = excelHeaders[h];
-        const pdfKey = headerMap[excelHeader];
-        const colData = pdfKey ? mapped[pdfKey] : [];
-        const val = colData[i] || "";
-        row.push(val);
-        if (keyIndexes.includes(h)) {
-          keyParts.push(val.toString().trim().toLowerCase());
-        }
-      }
-
-      const keyString = keyParts.join("|");
-      if (existingKeys.has(keyString)) {
-        duplicates.push(row);
-      } else {
-        dataRows.push(row);
-      }
-    }
-
-    if (duplicates.length > 0) {
-      const confirm = window.confirm(`⚠️ ${duplicates.length} Duplikate erkannt. Fortfahren & markieren?`);
-      if (!confirm) return;
-    }
-
-    // ✍ Einfügen neuer Daten
-    const startRow = usedRange.rowCount;
-    const range = sheet.getRangeByIndexes(startRow, 0, dataRows.length, colCount);
-    range.values = dataRows;
-    range.format.font.name = "Calibri";
-    range.format.font.size = 11;
-    range.format.horizontalAlignment = "Left";
-
-    // 🟨 Duplikate gelb markieren
-    if (duplicates.length > 0) {
-      const dupRange = sheet.getRangeByIndexes(1, 0, existingRows.length, colCount);
-      const dupVals = dupRange.values;
-      for (let r = 0; r < dupVals.length; r++) {
-        const row = dupVals[r];
-        const rowKey = keyIndexes.map(i => (row[i] || "").toString().trim().toLowerCase()).join("|");
-        if (duplicates.some(dup =>
-          rowKey === keyIndexes.map((_, i) => dup[keyIndexes[i]]?.toString().trim().toLowerCase()).join("|")
-        )) {
-          dupRange.getRow(r).format.fill.color = "#FFFF99";
-        }
-      }
-    }
-
-    await context.sync();
-
-    // 📊 SORTIERUNG nach „Kabelnummer“
-    const updatedUsedRange = sheet.getUsedRange();
-    const headerRow = sheet.getRange("A1:Z1");
-    updatedUsedRange.load("rowCount");
-    headerRow.load("values");
-    await context.sync();
-
-    const headers = headerRow.values[0];
-    const kabelIndex = headers.findIndex(h => normalizeLabel(h) === normalizeLabel("Kabelnummer"));
-
-    if (kabelIndex !== -1) {
-      const totalRows = updatedUsedRange.rowCount;
-      const sortRange = sheet.getRangeByIndexes(1, 0, totalRows - 1, colCount);
-      sortRange.sort.apply([{ key: kabelIndex, ascending: true }]);
-      await context.sync();
-    } else {
-      console.log("Spalte 'Kabelnummer' nicht gefunden – Sortierung übersprungen.");
-    }
-
-    // ➕ Duplikaterkennung nach dem Einfügen
-    await detectAndHandleDuplicates(context, sheet, excelHeaders);
-  });
-}
 
 function showError(msg) {
   const preview = document.getElementById("preview");
