@@ -188,12 +188,38 @@ async function uploadPDF() {
       }
 
       const data = await res.json();
-      // VLP Nummer aus Dateiname extrahieren
-      const vlpNumber = extractVLPNumber(file.name);
-      const entryCount = Object.values(data)[0]?.length || 0;
       
       // Neue Spalte "VLP" anfügen
-      data["VLP"] = new Array(entryCount).fill(vlpNumber);
+      // VLP aus Dateiname extrahieren
+      const vlpNumber = extractVLPNumber(file.name);
+      const keys = Object.keys(data);
+      const rowCount = Object.values(data)[0]?.length || 0;
+      
+      // Initialisiere VLP-Spalte
+      data["VLP"] = [];
+      
+      // Neue strukturierte Daten mit Filter
+      const filteredData = {};
+      for (const key of keys) {
+        filteredData[key] = [];
+      }
+      filteredData["VLP"] = [];
+      
+      for (let i = 0; i < rowCount; i++) {
+        const rowValues = keys.map(k => data[k][i]);
+        const rowWithoutVLP = rowValues.filter((v, idx) => v && keys[idx] !== "VLP");
+      
+        const isMeaningful = rowWithoutVLP.some(val => (val ?? "").toString().trim() !== "");
+        if (isMeaningful) {
+          for (const key of keys) {
+            filteredData[key].push(data[key][i]);
+          }
+          filteredData["VLP"].push(vlpNumber);
+        }
+      }
+      
+      // Überschreibe data mit gefiltertem Ergebnis
+      data = filteredData;
 
       allResults.push(data);
     } catch (err) {
