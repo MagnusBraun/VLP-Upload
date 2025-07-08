@@ -195,10 +195,6 @@ async function uploadPDF() {
       const keys = Object.keys(data);
       const rowCount = Object.values(data)[0]?.length || 0;
       
-      // Initialisiere VLP-Spalte
-      data["VLP"] = [];
-      
-      // Neue strukturierte Daten mit Filter
       const filteredData = {};
       for (const key of keys) {
         filteredData[key] = [];
@@ -206,20 +202,26 @@ async function uploadPDF() {
       filteredData["VLP"] = [];
       
       for (let i = 0; i < rowCount; i++) {
-        const rowValues = keys.map(k => data[k][i]);
-        const rowWithoutVLP = rowValues.filter((v, idx) => v && keys[idx] !== "VLP");
+        let hasValue = false;
+        for (const key of keys) {
+          const val = data[key]?.[i];
+          if (val && val.toString().trim() !== "") {
+            hasValue = true;
+            break;
+          }
+        }
       
-        const isMeaningful = rowWithoutVLP.some(val => (val ?? "").toString().trim() !== "");
-        if (isMeaningful) {
+        if (hasValue) {
           for (const key of keys) {
-            filteredData[key].push(data[key][i]);
+            filteredData[key].push(data[key]?.[i] || "");
           }
           filteredData["VLP"].push(vlpNumber);
         }
       }
       
-      // Überschreibe data mit gefiltertem Ergebnis
+      // Sicherstellen, dass data ersetzt wird
       data = filteredData;
+
 
       allResults.push(data);
     } catch (err) {
