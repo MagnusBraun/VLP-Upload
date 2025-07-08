@@ -320,7 +320,8 @@ async function insertToExcel(mapped) {
     await context.sync();
 
     const startRow = usedRange.rowCount;
-    const insertedKeyMap = new Map();
+    const insertedRowNumbers = [];
+    const insertedKeys = new Set();
 
     const saved = loadSavedMappings();
     let headerMap = createHeaderMapWithAliases(excelHeaders, Object.keys(mapped), columnAliases);
@@ -368,7 +369,8 @@ async function insertToExcel(mapped) {
       if (!existingKeys.has(keyString)) {
         existingKeys.add(keyString);
         const newRowNum = startRow + dataRows.length + 1;
-        insertedKeyMap.set(keyString, newRowNum); // Track key + rowNum
+        insertedRowNumbers.push(newRowNum);
+        insertedKeys.add(keyString);
         dataRows.push(row);
       }
     }
@@ -382,7 +384,34 @@ async function insertToExcel(mapped) {
       await context.sync();
     }
 
-    await detectAndHandleDuplicates(context, sheet, excelHeaders, insertedKeyMap);
+    // 📊 Sortieren
+    const updatedRange = sheet.getUsedRange();
+    updatedRange.load("rowCount");
+    await context.sync();
+    const kabelIndex = excelHeaders.findIndex(h => normalizeLabel(h) === normalizeLabel("Kabelnummer"));
+    if (kabelIndex !== -1) {
+      const sortRange = sheet.getRangeByIndexes(1, 0, updatedRange.rowCount - 1, colCount);
+      sortRange.sort.apply([{ key: kabelIndex, ascending: true }]);
+      await context.sync();
+    }
+
+    // Leere Zeilen entfernen
+    const fullRange = sheet.getUsedRange();
+    fullRange.load(["values", "rowCount"]);
+    await context.sync();
+
+    const emptyRows = fullRange.values.map((row, idx) => ({
+      isEmpty: row.every(cell => cell === "" || cell === null),
+      idx
+    })).filter(r => r.isEmpty).map(r => r.idx + 1).sort((a, b) => b - a);
+
+    for (const row of emptyRows) {
+      sheet.getRange(`A${row}:Z${row}`).delete(Excel.DeleteShiftDirection.up);
+    }
+
+    await context.sync();
+
+    await detectAndHandleDuplicates(context, sheet, excelHeaders, insertedRowNumbers, insertedKeys);
   });
 }
 
@@ -460,63 +489,59 @@ function showConfirmDialog(message, onConfirm, onCancel) {
   document.body.appendChild(overlay);
 }
 
-async function detectAndHandleDuplicates(context, sheet, headers, insertedKeyMap) {
+async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNumbers, insertedKeys) {
   const keyCols = ["Kabelnummer", "von Ort", "von km", "bis Ort", "bis km"];
   const keyIndexes = keyCols.map(k =>
     headers.findIndex(h => normalizeLabel(h) === normalizeLabel(k))
   ).filter(i => i !== -1);
 
-  if (keyIndexes.length < 2 || insertedKeyMap.size === 0) return;
+  if (keyIndexes.length < 2) return;
 
   const usedRange = sheet.getUsedRange();
   usedRange.load(["values", "rowCount"]);
   await context.sync();
 
   const rows = usedRange.values;
-  const rowMap = new Map(); // keyString → [rowNums]
+  const rowMap = new Map();
 
   rows.forEach((row, idx) => {
     const key = keyIndexes.map(i => (row[i] || "").toString().trim().toLowerCase()).join("|");
     if (!key) return;
     if (!rowMap.has(key)) rowMap.set(key, []);
-    rowMap.get(key).push(idx + 1); // Excel 1-based
+    rowMap.get(key).push(idx + 1);
   });
 
   const dupGroups = [];
   const toDelete = [];
 
   for (const [key, rows] of rowMap.entries()) {
-    if (insertedKeyMap.has(key) && rows.length > 1) {
-      dupGroups.push(rows);
-      const rowToDelete = insertedKeyMap.get(key);
-      if (rows.includes(rowToDelete)) {
-        toDelete.push(rowToDelete);
+    if (insertedKeys.has(key) && rows.length > 1) {
+      const inNew = rows.filter(r => insertedRowNumbers.includes(r));
+      if (inNew.length > 0) {
+        dupGroups.push(rows);
+        toDelete.push(...inNew.slice(1)); // first bleibt
       }
     }
   }
 
   if (toDelete.length === 0) return;
 
-  // Markieren
   for (const group of dupGroups) {
     for (const rowNum of group) {
       sheet.getRange(`A${rowNum}:Z${rowNum}`).format.fill.color = "#FFFF99";
     }
   }
 
-  // Dialog anzeigen
   showConfirmDialog(
-    `⚠️ ${dupGroups.length} Duplikate erkannt. Duplikate wurden gelb markiert.\nWas möchtest du tun?`,
+    `⚠️ ${dupGroups.length} Duplikate erkannt.\nWas möchtest du tun?`,
     async () => {
       for (const row of toDelete.sort((a, b) => b - a)) {
         sheet.getRange(`A${row}:Z${row}`).delete(Excel.DeleteShiftDirection.up);
       }
-
       const count = sheet.getUsedRange().rowCount;
       if (count > 1) {
         sheet.getRangeByIndexes(1, 0, count - 1, headers.length).format.fill.clear();
       }
-
       await context.sync();
     },
     async () => {
@@ -529,6 +554,7 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedKeyMap
     }
   );
 }
+
 
 
 function showError(msg) {
