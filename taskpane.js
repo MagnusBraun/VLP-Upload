@@ -318,7 +318,9 @@ async function insertToExcel(mapped) {
     const usedRange = sheet.getUsedRange();
     usedRange.load(["values", "rowCount"]);
     await context.sync();
+
     const startRow = usedRange.rowCount;
+    const insertedRowNumbers = [];
 
     const saved = loadSavedMappings();
     let headerMap = createHeaderMapWithAliases(excelHeaders, Object.keys(mapped), columnAliases);
@@ -369,11 +371,10 @@ async function insertToExcel(mapped) {
       } else {
         existingKeys.add(keyString);
         dataRows.push(row);
-        insertedRowNumbers.push(startRow + insertedRowNumbers.length + 1); // Excel 1-based
+        insertedRowNumbers.push(startRow + insertedRowNumbers.length + 1);
       }
     }
 
-    const insertedRowNumbers = [];
     if (dataRows.length > 0) {
       const range = sheet.getRangeByIndexes(startRow, 0, dataRows.length, colCount);
       range.values = dataRows;
@@ -383,10 +384,10 @@ async function insertToExcel(mapped) {
       await context.sync();
     }
 
-    // 📊 Nach Kabelnummer sortieren
     const updatedRange = sheet.getUsedRange();
     updatedRange.load("rowCount");
     await context.sync();
+
     const kabelIndex = excelHeaders.findIndex(h => normalizeLabel(h) === normalizeLabel("Kabelnummer"));
     if (kabelIndex !== -1) {
       const sortRange = sheet.getRangeByIndexes(1, 0, updatedRange.rowCount - 1, colCount);
@@ -394,20 +395,20 @@ async function insertToExcel(mapped) {
       await context.sync();
     }
 
-// Leere Zeilen entfernen
     const fullRange = sheet.getUsedRange();
     fullRange.load(["values", "rowCount"]);
     await context.sync();
-    
+
     const emptyRows = fullRange.values.map((row, idx) => ({
       isEmpty: row.every(cell => cell === "" || cell === null),
       idx
-    })).filter(r => r.isEmpty).map(r => r.idx + 1).sort((a, b) => b - a); // Excel 1-based
-    
+    })).filter(r => r.isEmpty).map(r => r.idx + 1).sort((a, b) => b - a);
+
     for (const row of emptyRows) {
       sheet.getRange(`A${row}:Z${row}`).delete(Excel.DeleteShiftDirection.up);
     }
     await context.sync();
+
     await detectAndHandleDuplicates(context, sheet, excelHeaders, insertedRowNumbers);
   });
 }
@@ -499,32 +500,27 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNum
 
   const rows = usedRange.values;
   const rowMap = new Map();
-  rowMap.clear();
+
   rows.forEach((row, idx) => {
     const key = keyIndexes.map(i => (row[i] || "").toString().trim().toLowerCase()).join("|");
     if (!key) return;
-  
     if (!rowMap.has(key)) rowMap.set(key, []);
-    rowMap.get(key).push(idx + 1); // Excel 1-based Zeilennummer
-});
+    rowMap.get(key).push(idx + 1);
+  });
 
   const dupGroups = [...rowMap.values()].filter(group => {
-    const intersection = group.filter(r => insertedRows.includes(r));
+    const intersection = group.filter(r => insertedRowNumbers.includes(r));
     return intersection.length > 1 || (group.length > 1 && intersection.length >= 1);
   });
 
-// Filter: nur innerhalb insertedRows löschen
-  const toDelete = dupGroups.flatMap(g => g.filter(r => insertedRows.includes(r)).slice(1));
+  const toDelete = dupGroups.flatMap(g => g.filter(r => insertedRowNumbers.includes(r)).slice(1));
 
-
-  // Nur betroffene Zeilen gelb markieren
   for (const group of dupGroups) {
     for (const rowNum of group) {
       sheet.getRange(`A${rowNum}:Z${rowNum}`).format.fill.color = "#FFFF99";
     }
   }
 
-  // ➕ Dialog für Auswahl
   const overlay = document.createElement("div");
   Object.assign(overlay.style, {
     position: "fixed", top: "0", left: "0", width: "100%", height: "100%",
@@ -568,7 +564,6 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNum
       sheet.getRange(`A${rowNum}:Z${rowNum}`).delete(Excel.DeleteShiftDirection.up);
     }
 
-    // Auch übriggebliebene Markierungen entfernen
     const remainingRows = sheet.getUsedRange();
     remainingRows.load("rowCount");
     await context.sync();
@@ -587,7 +582,6 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNum
   overlay.appendChild(box);
   document.body.appendChild(overlay);
 }
-
 function showError(msg) {
   const preview = document.getElementById("preview");
   preview.innerHTML = `<div style="color:red;font-weight:bold">${msg}</div>`;
