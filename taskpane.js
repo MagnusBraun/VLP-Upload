@@ -509,10 +509,10 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedKeys =
     keyRowMap.set(idx + 1, key);
   });
 
-  const dupGroups = [...rowMap.values()].filter(group => {
-    const keys = group.map(r => keyRowMap.get(r));
-    return keys.some(k => insertedKeys.has(k));
-  });
+  const dupGroups = [...rowMap.entries()]
+    .filter(([key, rows]) => insertedKeys.has(key) && rows.length > 1)
+    .map(([_, rows]) => rows);
+
 
   const toDelete = dupGroups.flatMap(g => g.filter(r => insertedKeys.has(keyRowMap.get(r))).slice(1));
 
