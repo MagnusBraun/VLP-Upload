@@ -373,7 +373,6 @@ async function insertToExcel(mapped) {
       }
     }
 
-    const startRow = usedRange.rowCount;
     const insertedRowNumbers = [];
     if (dataRows.length > 0) {
       const range = sheet.getRangeByIndexes(startRow, 0, dataRows.length, colCount);
