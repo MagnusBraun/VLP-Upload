@@ -406,7 +406,7 @@ for (const row of emptyRows) {
   sheet.getRange(`A${row}:Z${row}`).delete(Excel.DeleteShiftDirection.up);
 }
 await context.sync();
-await detectAndHandleDuplicates(context, sheet, excelHeaders);  });
+await detectAndHandleDuplicates(context, sheet, excelHeaders, startRow + 1);
 }
 async function removeEmptyRows(context, sheet) {
   const usedRange = sheet.getUsedRange();
@@ -482,7 +482,7 @@ function showConfirmDialog(message, onConfirm, onCancel) {
   document.body.appendChild(overlay);
 }
 
-async function detectAndHandleDuplicates(context, sheet, headers) {
+async function detectAndHandleDuplicates(context, sheet, headers, onlyFromRow = 2) {
   const keyCols = ["Kabelnummer", "von Ort", "von km", "bis Ort", "bis km"];
   const keyIndexes = keyCols.map(k =>
     headers.findIndex(h => normalizeLabel(h) === normalizeLabel(k))
@@ -494,13 +494,13 @@ async function detectAndHandleDuplicates(context, sheet, headers) {
   usedRange.load(["values", "rowCount", "columnCount"]);
   await context.sync();
 
-  const rows = usedRange.values.slice(1);
+  const rows = usedRange.values.slice(onlyFromRow - 1);
   const rowMap = new Map();
 
   rows.forEach((row, idx) => {
     const key = keyIndexes.map(i => (row[i] || "").toString().trim().toLowerCase()).join("|");
     if (key && !rowMap.has(key)) rowMap.set(key, []);
-    if (key) rowMap.get(key).push(idx + 2); // +2 = 1-based row + skip header
+    if (key) rowMap.get(key).push(onlyFromRow + idx);
   });
 
   const dupGroups = [...rowMap.values()].filter(group => group.length > 1);
