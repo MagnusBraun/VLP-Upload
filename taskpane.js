@@ -406,7 +406,8 @@ for (const row of emptyRows) {
   sheet.getRange(`A${row}:Z${row}`).delete(Excel.DeleteShiftDirection.up);
 }
 await context.sync();
-await detectAndHandleDuplicates(context, sheet, excelHeaders, startRow + 1, context);
+await detectAndHandleDuplicates(context, sheet, excelHeaders, startRow + 1);
+  });
 }
 async function removeEmptyRows(context, sheet) {
   const usedRange = sheet.getUsedRange();
@@ -482,7 +483,7 @@ function showConfirmDialog(message, onConfirm, onCancel) {
   document.body.appendChild(overlay);
 }
 
-async function detectAndHandleDuplicates(context, sheet, headers, onlyFromRow = 2, officecontext) {
+async function detectAndHandleDuplicates(context, sheet, headers, onlyFromRow = 2) {
   const keyCols = ["Kabelnummer", "von Ort", "von km", "bis Ort", "bis km"];
   const keyIndexes = keyCols.map(k =>
     headers.findIndex(h => normalizeLabel(h) === normalizeLabel(k))
