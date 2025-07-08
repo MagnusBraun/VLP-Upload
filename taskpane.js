@@ -343,6 +343,7 @@ async function insertToExcel(mapped) {
 
     const dataRows = [];
     const duplicates = [];
+    const insertedRowNumbers = [];
 
     for (let i = 0; i < maxRows; i++) {
       const row = [];
