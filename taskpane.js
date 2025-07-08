@@ -4,8 +4,6 @@ Office.onReady(() => {
     input.onchange = uploadPDF;
   }
 });
-//const cors = require("cors");
-//app.use(cors({ origin: "*" }));
 
 const apiUrl = "https://vlp-upload.onrender.com/process";
 const storageKey = "pmfusion-column-mapping";
