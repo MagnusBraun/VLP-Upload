@@ -407,7 +407,7 @@ for (const row of emptyRows) {
 }
 await context.sync();
 await detectAndHandleDuplicates(context, sheet, excelHeaders, startRow + 1);
-  }
+  });
 }
 async function removeEmptyRows(context, sheet) {
   const usedRange = sheet.getUsedRange();
