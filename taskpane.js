@@ -204,17 +204,20 @@ async function uploadPDF() {
       filteredData["VLP"] = [];
       
       for (let i = 0; i < rowCount; i++) {
-        const rowValues = keys.map(k => data[k][i]);
-        const rowWithoutVLP = rowValues.filter((v, idx) => v && keys[idx] !== "VLP");
+        const values = keys.map(key => data[key]?.[i]);
       
-        const isMeaningful = rowWithoutVLP.some(val => (val ?? "").toString().trim() !== "");
+        const isMeaningful = values.some(v => {
+          return v !== null && v !== undefined && v.toString().trim() !== "";
+        });
+      
         if (isMeaningful) {
           for (const key of keys) {
-            filteredData[key].push(data[key][i]);
+            filteredData[key].push(data[key]?.[i] ?? "");
           }
           filteredData["VLP"].push(vlpNumber);
         }
       }
+
       
       // Überschreibe data mit gefiltertem Ergebnis
       data = filteredData;
