@@ -187,16 +187,12 @@ async function uploadPDF() {
         throw new Error(err.detail || "Serverfehler");
       }
 
-      const data = await res.json();
-     
+      let data = await res.json();
       const vlpNumber = extractVLPNumber(file.name);
       const keys = Object.keys(data);
       const rowCount = Object.values(data)[0]?.length || 0;
       
-      // Initialisiere VLP-Spalte
-      data["VLP"] = [];
-      
-      // Neue strukturierte Daten mit Filter
+      // Leere Daten verhindern, auch wenn VLP existiert
       const filteredData = {};
       for (const key of keys) {
         filteredData[key] = [];
@@ -204,24 +200,31 @@ async function uploadPDF() {
       filteredData["VLP"] = [];
       
       for (let i = 0; i < rowCount; i++) {
-        const values = keys.map(key => data[key]?.[i]);
+        let hasRealContent = false;
       
-        const isMeaningful = values.some(v => {
-          return v !== null && v !== undefined && v.toString().trim() !== "";
-        });
+        for (const key of keys) {
+          const value = data[key]?.[i];
+          if (value !== null && value !== undefined && value.toString().trim() !== "") {
+            hasRealContent = true;
+            break;
+          }
+        }
       
-        if (isMeaningful) {
+        if (hasRealContent) {
           for (const key of keys) {
             filteredData[key].push(data[key]?.[i] ?? "");
           }
           filteredData["VLP"].push(vlpNumber);
         }
       }
-
       
-      // Überschreibe data mit gefiltertem Ergebnis
+      // Wenn nach dem Filtern KEINE Zeile übrig bleibt
+      const filteredRowCount = filteredData["VLP"].length;
+      if (filteredRowCount === 0) {
+        throw new Error("Keine gültigen Datenzeilen in dieser PDF.");
+      }
+      
       data = filteredData;
-      
       allResults.push(data);
     } catch (err) {
       errors.push(`${file.name}: ${err.message}`);
