@@ -321,6 +321,7 @@ async function insertToExcel(mapped) {
 
     const startRow = usedRange.rowCount;
     const insertedRowNumbers = [];
+    const insertedKeys = new Set();
 
     const saved = loadSavedMappings();
     let headerMap = createHeaderMapWithAliases(excelHeaders, Object.keys(mapped), columnAliases);
@@ -345,7 +346,6 @@ async function insertToExcel(mapped) {
     );
 
     const dataRows = [];
-    const duplicates = [];
 
     for (let i = 0; i < maxRows; i++) {
       const row = [];
@@ -366,12 +366,11 @@ async function insertToExcel(mapped) {
         }
       }
       const keyString = keyParts.join("|");
-      if (existingKeys.has(keyString)) {
-        duplicates.push({ key: keyString, row });
-      } else {
+      if (!existingKeys.has(keyString)) {
         existingKeys.add(keyString);
         dataRows.push(row);
         insertedRowNumbers.push(startRow + insertedRowNumbers.length + 1);
+        insertedKeys.add(keyString);
       }
     }
 
@@ -409,7 +408,7 @@ async function insertToExcel(mapped) {
     }
     await context.sync();
 
-    await detectAndHandleDuplicates(context, sheet, excelHeaders, insertedRowNumbers);
+    await detectAndHandleDuplicates(context, sheet, excelHeaders, insertedKeys);
   });
 }
 async function removeEmptyRows(context, sheet) {
@@ -486,13 +485,13 @@ function showConfirmDialog(message, onConfirm, onCancel) {
   document.body.appendChild(overlay);
 }
 
-async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNumbers = []) {
+async function detectAndHandleDuplicates(context, sheet, headers, insertedKeys = new Set()) {
   const keyCols = ["Kabelnummer", "von Ort", "von km", "bis Ort", "bis km"];
   const keyIndexes = keyCols.map(k =>
     headers.findIndex(h => normalizeLabel(h) === normalizeLabel(k))
   ).filter(i => i !== -1);
 
-  if (keyIndexes.length < 2) return;
+  if (keyIndexes.length < 2 || insertedKeys.size === 0) return;
 
   const usedRange = sheet.getUsedRange();
   usedRange.load(["values", "rowCount", "columnCount"]);
@@ -500,20 +499,24 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNum
 
   const rows = usedRange.values;
   const rowMap = new Map();
+  const keyRowMap = new Map();
 
   rows.forEach((row, idx) => {
     const key = keyIndexes.map(i => (row[i] || "").toString().trim().toLowerCase()).join("|");
     if (!key) return;
     if (!rowMap.has(key)) rowMap.set(key, []);
     rowMap.get(key).push(idx + 1);
+    keyRowMap.set(idx + 1, key);
   });
 
   const dupGroups = [...rowMap.values()].filter(group => {
-    const intersection = group.filter(r => insertedRowNumbers.includes(r));
-    return intersection.length > 1 || (group.length > 1 && intersection.length >= 1);
+    const keys = group.map(r => keyRowMap.get(r));
+    return keys.some(k => insertedKeys.has(k));
   });
 
-  const toDelete = dupGroups.flatMap(g => g.filter(r => insertedRowNumbers.includes(r)).slice(1));
+  const toDelete = dupGroups.flatMap(g => g.filter(r => insertedKeys.has(keyRowMap.get(r))).slice(1));
+
+  if (toDelete.length === 0) return;
 
   for (const group of dupGroups) {
     for (const rowNum of group) {
@@ -582,6 +585,7 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNum
   overlay.appendChild(box);
   document.body.appendChild(overlay);
 }
+
 function showError(msg) {
   const preview = document.getElementById("preview");
   preview.innerHTML = `<div style="color:red;font-weight:bold">${msg}</div>`;
