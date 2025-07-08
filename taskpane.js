@@ -384,7 +384,10 @@ async function insertToExcel(mapped) {
       await context.sync();
     }
 
-    // 📊 Sortieren
+    // ✅ Jetzt Duplikate prüfen, vor Sortierung!
+    await detectAndHandleDuplicates(context, sheet, excelHeaders, insertedRowNumbers, insertedKeys);
+
+    // 📊 Jetzt sortieren nach Kabelnummer
     const updatedRange = sheet.getUsedRange();
     updatedRange.load("rowCount");
     await context.sync();
@@ -395,7 +398,7 @@ async function insertToExcel(mapped) {
       await context.sync();
     }
 
-    // Leere Zeilen entfernen
+    // 🧹 Leere Zeilen entfernen
     const fullRange = sheet.getUsedRange();
     fullRange.load(["values", "rowCount"]);
     await context.sync();
@@ -410,10 +413,9 @@ async function insertToExcel(mapped) {
     }
 
     await context.sync();
-
-    await detectAndHandleDuplicates(context, sheet, excelHeaders, insertedRowNumbers, insertedKeys);
   });
 }
+
 
 async function removeEmptyRows(context, sheet) {
   const usedRange = sheet.getUsedRange();
