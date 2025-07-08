@@ -370,10 +370,12 @@ async function insertToExcel(mapped) {
       } else {
         existingKeys.add(keyString);
         dataRows.push(row);
+        insertedRowNumbers.push(startRow + insertedRowNumbers.length + 1); // Excel 1-based
       }
     }
 
     const startRow = usedRange.rowCount;
+    const insertedRowNumbers = [];
     if (dataRows.length > 0) {
       const range = sheet.getRangeByIndexes(startRow, 0, dataRows.length, colCount);
       range.values = dataRows;
@@ -408,7 +410,7 @@ async function insertToExcel(mapped) {
       sheet.getRange(`A${row}:Z${row}`).delete(Excel.DeleteShiftDirection.up);
     }
     await context.sync();
-    await detectAndHandleDuplicates(context, sheet, excelHeaders, startRow + 1);
+    await detectAndHandleDuplicates(context, sheet, excelHeaders, insertedRowNumbers);
   });
 }
 async function removeEmptyRows(context, sheet) {
@@ -485,7 +487,7 @@ function showConfirmDialog(message, onConfirm, onCancel) {
   document.body.appendChild(overlay);
 }
 
-async function detectAndHandleDuplicates(context, sheet, headers, onlyFromRow = 2) {
+async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNumbers = []) {
   const keyCols = ["Kabelnummer", "von Ort", "von km", "bis Ort", "bis km"];
   const keyIndexes = keyCols.map(k =>
     headers.findIndex(h => normalizeLabel(h) === normalizeLabel(k))
@@ -497,17 +499,27 @@ async function detectAndHandleDuplicates(context, sheet, headers, onlyFromRow = 
   usedRange.load(["values", "rowCount", "columnCount"]);
   await context.sync();
 
-  const rows = usedRange.values.slice(onlyFromRow - 1);
+  const rows = usedRange.values;
+  const rowMap = new Map();
+
   const rowMap = new Map();
 
   rows.forEach((row, idx) => {
     const key = keyIndexes.map(i => (row[i] || "").toString().trim().toLowerCase()).join("|");
-    if (key && !rowMap.has(key)) rowMap.set(key, []);
-    if (key) rowMap.get(key).push(onlyFromRow + idx);
+    if (!key) return;
+  
+    if (!rowMap.has(key)) rowMap.set(key, []);
+    rowMap.get(key).push(idx + 1); // Excel 1-based Zeilennummer
+});
+
+  const dupGroups = [...rowMap.values()].filter(group => {
+    const intersection = group.filter(r => insertedRows.includes(r));
+    return intersection.length > 1 || (group.length > 1 && intersection.length >= 1);
   });
 
-  const dupGroups = [...rowMap.values()].filter(group => group.length > 1);
-  if (dupGroups.length === 0) return;
+// Filter: nur innerhalb insertedRows löschen
+  const toDelete = dupGroups.flatMap(g => g.filter(r => insertedRows.includes(r)).slice(1));
+
 
   // Nur betroffene Zeilen gelb markieren
   for (const group of dupGroups) {
@@ -555,7 +567,7 @@ async function detectAndHandleDuplicates(context, sheet, headers, onlyFromRow = 
   deleteBtn.textContent = "Duplikate löschen";
   deleteBtn.style.marginLeft = "1em";
   deleteBtn.onclick = async () => {
-    const rowsToDelete = dupGroups.flatMap(g => g.slice(1)).sort((a, b) => b - a);
+    const rowsToDelete = toDelete.sort((a, b) => b - a);
     for (const rowNum of rowsToDelete) {
       sheet.getRange(`A${rowNum}:Z${rowNum}`).delete(Excel.DeleteShiftDirection.up);
     }
