@@ -320,8 +320,7 @@ async function insertToExcel(mapped) {
     await context.sync();
 
     const startRow = usedRange.rowCount;
-    const insertedRowNumbers = [];
-    const insertedKeys = new Set();
+    const insertedKeyMap = new Map();
 
     const saved = loadSavedMappings();
     let headerMap = createHeaderMapWithAliases(excelHeaders, Object.keys(mapped), columnAliases);
@@ -368,9 +367,9 @@ async function insertToExcel(mapped) {
       const keyString = keyParts.join("|");
       if (!existingKeys.has(keyString)) {
         existingKeys.add(keyString);
+        const newRowNum = startRow + dataRows.length + 1;
+        insertedKeyMap.set(keyString, newRowNum); // Track key + rowNum
         dataRows.push(row);
-        insertedRowNumbers.push(startRow + insertedRowNumbers.length + 1);
-        insertedKeys.add(keyString);
       }
     }
 
@@ -383,34 +382,10 @@ async function insertToExcel(mapped) {
       await context.sync();
     }
 
-    const updatedRange = sheet.getUsedRange();
-    updatedRange.load("rowCount");
-    await context.sync();
-
-    const kabelIndex = excelHeaders.findIndex(h => normalizeLabel(h) === normalizeLabel("Kabelnummer"));
-    if (kabelIndex !== -1) {
-      const sortRange = sheet.getRangeByIndexes(1, 0, updatedRange.rowCount - 1, colCount);
-      sortRange.sort.apply([{ key: kabelIndex, ascending: true }]);
-      await context.sync();
-    }
-
-    const fullRange = sheet.getUsedRange();
-    fullRange.load(["values", "rowCount"]);
-    await context.sync();
-
-    const emptyRows = fullRange.values.map((row, idx) => ({
-      isEmpty: row.every(cell => cell === "" || cell === null),
-      idx
-    })).filter(r => r.isEmpty).map(r => r.idx + 1).sort((a, b) => b - a);
-
-    for (const row of emptyRows) {
-      sheet.getRange(`A${row}:Z${row}`).delete(Excel.DeleteShiftDirection.up);
-    }
-    await context.sync();
-
-    await detectAndHandleDuplicates(context, sheet, excelHeaders, insertedKeys);
+    await detectAndHandleDuplicates(context, sheet, excelHeaders, insertedKeyMap);
   });
 }
+
 async function removeEmptyRows(context, sheet) {
   const usedRange = sheet.getUsedRange();
   usedRange.load(["values", "rowCount", "columnCount"]);
@@ -485,106 +460,76 @@ function showConfirmDialog(message, onConfirm, onCancel) {
   document.body.appendChild(overlay);
 }
 
-async function detectAndHandleDuplicates(context, sheet, headers, insertedKeys = new Set()) {
+async function detectAndHandleDuplicates(context, sheet, headers, insertedKeyMap) {
   const keyCols = ["Kabelnummer", "von Ort", "von km", "bis Ort", "bis km"];
   const keyIndexes = keyCols.map(k =>
     headers.findIndex(h => normalizeLabel(h) === normalizeLabel(k))
   ).filter(i => i !== -1);
 
-  if (keyIndexes.length < 2 || insertedKeys.size === 0) return;
+  if (keyIndexes.length < 2 || insertedKeyMap.size === 0) return;
 
   const usedRange = sheet.getUsedRange();
-  usedRange.load(["values", "rowCount", "columnCount"]);
+  usedRange.load(["values", "rowCount"]);
   await context.sync();
 
   const rows = usedRange.values;
-  const rowMap = new Map();
-  const keyRowMap = new Map();
+  const rowMap = new Map(); // keyString → [rowNums]
 
   rows.forEach((row, idx) => {
     const key = keyIndexes.map(i => (row[i] || "").toString().trim().toLowerCase()).join("|");
     if (!key) return;
     if (!rowMap.has(key)) rowMap.set(key, []);
-    rowMap.get(key).push(idx + 1);
-    keyRowMap.set(idx + 1, key);
+    rowMap.get(key).push(idx + 1); // Excel 1-based
   });
 
-  const dupGroups = [...rowMap.entries()]
-    .filter(([key, rows]) => insertedKeys.has(key) && rows.length > 1)
-    .map(([_, rows]) => rows);
+  const dupGroups = [];
+  const toDelete = [];
 
-
-  const toDelete = dupGroups.flatMap(g => g.filter(r => insertedKeys.has(keyRowMap.get(r))).slice(1));
+  for (const [key, rows] of rowMap.entries()) {
+    if (insertedKeyMap.has(key) && rows.length > 1) {
+      dupGroups.push(rows);
+      const rowToDelete = insertedKeyMap.get(key);
+      if (rows.includes(rowToDelete)) {
+        toDelete.push(rowToDelete);
+      }
+    }
+  }
 
   if (toDelete.length === 0) return;
 
+  // Markieren
   for (const group of dupGroups) {
     for (const rowNum of group) {
       sheet.getRange(`A${rowNum}:Z${rowNum}`).format.fill.color = "#FFFF99";
     }
   }
 
-  const overlay = document.createElement("div");
-  Object.assign(overlay.style, {
-    position: "fixed", top: "0", left: "0", width: "100%", height: "100%",
-    backgroundColor: "rgba(0,0,0,0.4)", zIndex: "9999", padding: "2em"
-  });
-
-  const box = document.createElement("div");
-  Object.assign(box.style, {
-    background: "white", padding: "1.5em", borderRadius: "8px",
-    maxWidth: "500px", margin: "auto"
-  });
-
-  const title = document.createElement("h3");
-  title.textContent = `⚠️ ${dupGroups.length} Duplikate erkannt`;
-  box.appendChild(title);
-
-  const msg = document.createElement("p");
-  msg.innerText = "Duplikate wurden gelb markiert. Was möchtest du tun?";
-  box.appendChild(msg);
-
-  const btns = document.createElement("div");
-
-  const keepBtn = document.createElement("button");
-  keepBtn.textContent = "Beibehalten";
-  keepBtn.onclick = async () => {
-    for (const group of dupGroups) {
-      for (const rowNum of group) {
-        sheet.getRange(`A${rowNum}:Z${rowNum}`).format.fill.clear();
+  // Dialog anzeigen
+  showConfirmDialog(
+    `⚠️ ${dupGroups.length} Duplikate erkannt. Duplikate wurden gelb markiert.\nWas möchtest du tun?`,
+    async () => {
+      for (const row of toDelete.sort((a, b) => b - a)) {
+        sheet.getRange(`A${row}:Z${row}`).delete(Excel.DeleteShiftDirection.up);
       }
+
+      const count = sheet.getUsedRange().rowCount;
+      if (count > 1) {
+        sheet.getRangeByIndexes(1, 0, count - 1, headers.length).format.fill.clear();
+      }
+
+      await context.sync();
+    },
+    async () => {
+      for (const group of dupGroups) {
+        for (const rowNum of group) {
+          sheet.getRange(`A${rowNum}:Z${rowNum}`).format.fill.clear();
+        }
+      }
+      await context.sync();
     }
-    overlay.remove();
-    await context.sync();
-  };
-
-  const deleteBtn = document.createElement("button");
-  deleteBtn.textContent = "Duplikate löschen";
-  deleteBtn.style.marginLeft = "1em";
-  deleteBtn.onclick = async () => {
-    const rowsToDelete = toDelete.sort((a, b) => b - a);
-    for (const rowNum of rowsToDelete) {
-      sheet.getRange(`A${rowNum}:Z${rowNum}`).delete(Excel.DeleteShiftDirection.up);
-    }
-
-    const remainingRows = sheet.getUsedRange();
-    remainingRows.load("rowCount");
-    await context.sync();
-    const count = remainingRows.rowCount;
-    if (count > 1) {
-      sheet.getRangeByIndexes(1, 0, count - 1, headers.length).format.fill.clear();
-    }
-
-    overlay.remove();
-    await context.sync();
-  };
-
-  btns.appendChild(keepBtn);
-  btns.appendChild(deleteBtn);
-  box.appendChild(btns);
-  overlay.appendChild(box);
-  document.body.appendChild(overlay);
+  );
 }
+
 
 function showError(msg) {
   const preview = document.getElementById("preview");
