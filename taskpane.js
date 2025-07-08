@@ -11,6 +11,10 @@ const storageKey = "pmfusion-column-mapping";
 function normalizeLabel(label) {
   return label.toLowerCase().replace(/[^a-z0-9]/gi, "");
 }
+function extractVLPNumber(filename) {
+  const match = filename.match(/VLP[\s\-]*(\d+)/i);
+  return match ? `VLP ${match[1]}` : "";
+}
 
 const columnAliases = {
   "Kabelnummer": ["kabelnummer", "kabel-nr", "kabelnr"],
@@ -28,11 +32,6 @@ const columnAliases = {
   "Verlegeart": ["verlegeart"],
   "Bemerkung": ["bemerkung", "bemerkungen"],
 };
-
-function extractVLPNumber(filename) {
-  const match = filename.match(/VLP[\s\-]*(\d+)/i);
-  return match ? `VLP ${match[1]}` : "";
-}
 
 function loadSavedMappings() {
   const json = localStorage.getItem(storageKey);
@@ -188,11 +187,15 @@ async function uploadPDF() {
         throw new Error(err.detail || "Serverfehler");
       }
 
-      let data = await res.json();
-      const vlpValue = extractVLPNumber(file.name);
-      const rowCount = Object.values(data)[0]?.length || 0;
-      data["VLP"] = Array(rowCount).fill(vlpValue);
-            allResults.push(data);
+      const data = await res.json();
+      // VLP Nummer aus Dateiname extrahieren
+      const vlpNumber = extractVLPNumber(file.name);
+      const entryCount = Object.values(data)[0]?.length || 0;
+      
+      // Neue Spalte "VLP" anfügen
+      data["VLP"] = new Array(entryCount).fill(vlpNumber);
+
+      allResults.push(data);
     } catch (err) {
       errors.push(`${file.name}: ${err.message}`);
     }
@@ -228,12 +231,13 @@ function previewInTable(mapped) {
   const preview = document.getElementById("preview");
   preview.innerHTML = "";
 
-  const headers = [...Object.keys(mapped)];
-  if (!headers.includes("VLP")) {
+  const headers = Object.keys(mapped);
+  const maxLength = Math.max(...headers.map(k => mapped[k].length));
+  // Stelle sicher, dass VLP ganz am Ende steht
+  if (!headers.includes("VLP") && mapped["VLP"]) {
     headers.push("VLP");
   }
-  const maxLength = Math.max(...headers.map(k => mapped[k].length));
-
+  
   const table = document.createElement("table");
   table.border = "1";
 
@@ -316,7 +320,12 @@ async function insertToExcel(mapped) {
       for (let h = 0; h < colCount; h++) {
         const excelHeader = excelHeaders[h];
         const pdfKey = headerMap[excelHeader];
-        const colData = mapped.hasOwnProperty(excelHeader) ? mapped[excelHeader] : (pdfKey ? mapped[pdfKey] : []);
+        let colData = [];
+        if (mapped.hasOwnProperty(excelHeader)) {
+          colData = mapped[excelHeader];
+        } else if (pdfKey && mapped.hasOwnProperty(pdfKey)) {
+          colData = mapped[pdfKey];
+        }
         const val = colData[i] || "";
         row.push(val);
         if (keyIndexes.includes(h)) {
