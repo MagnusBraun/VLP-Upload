@@ -505,59 +505,63 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNum
 
   const allRows = usedRange.values;
 
-  // Alle Excel-Zeilen außer Header
-  const existingKeys = new Set(
-    allRows.slice(1, usedRange.rowCount).map(row =>
-      keyIndexes.map(i => (row[i] || "").toString().trim().toLowerCase()).join("|")
-    )
-  );
+  const existingKeyMap = new Map();
+  allRows.slice(1).forEach((row, idx) => {
+    const key = keyIndexes.map(i => (row[i] || "").toString().trim().toLowerCase()).join("|");
+    if (!existingKeyMap.has(key)) existingKeyMap.set(key, []);
+    existingKeyMap.get(key).push(idx + 2); // Excel rows start at 1, +1 for skipping header
+  });
 
-  // Prüfe neue eingefügte Zeilen gegen bestehende Excel-Zeilen
   const dupRowNums = [];
   const markedRanges = [];
 
   for (const rowNum of insertedRowNumbers) {
     const range = sheet.getRange(`A${rowNum}:Z${rowNum}`);
-    const row = (await range.load("values"), await context.sync(), range.values[0]);
+    range.load("values");
+    await context.sync();
+    const row = range.values[0];
 
     const key = keyIndexes.map(i => (row[i] || "").toString().trim().toLowerCase()).join("|");
+    const dupRows = existingKeyMap.get(key) || [];
 
-    let found = false;
-    let excelRowIdx = 1;
-    for (const existing of allRows.slice(1)) {
-      const existingKey = keyIndexes.map(i => (existing[i] || "").toString().trim().toLowerCase()).join("|");
-      if (existingKey === key && excelRowIdx + 1 !== rowNum) {
-        found = true;
-        break;
-      }
-      excelRowIdx++;
-    }
-
-    if (found) {
+    if (dupRows.length > 0) {
       dupRowNums.push(rowNum);
       markedRanges.push(range);
       range.format.fill.color = "#FFFF99";
+
+      for (const dup of dupRows) {
+        const dupRange = sheet.getRange(`A${dup}:Z${dup}`);
+        markedRanges.push(dupRange);
+        dupRange.format.fill.color = "#FFFF99";
+      }
     }
   }
 
   if (dupRowNums.length === 0) return;
 
-  // Benutzerabfrage anzeigen
   await new Promise(resolve => {
     showConfirmDialog(
       `${dupRowNums.length} Duplikate erkannt. Beibehalten oder löschen?`,
-      async () => { // Löschen
+      async () => {
         const sorted = dupRowNums.sort((a, b) => b - a);
         for (const row of sorted) {
           sheet.getRange(`A${row}:Z${row}`).delete(Excel.DeleteShiftDirection.up);
         }
         resolve();
       },
-      async () => { // Beibehalten
+      async () => {
         resolve();
       }
     );
   });
+
+  for (const range of markedRanges) {
+    range.format.fill.clear();
+  }
+
+  await context.sync();
+}
+
 
   // Markierung zurücksetzen
   for (const range of markedRanges) {
