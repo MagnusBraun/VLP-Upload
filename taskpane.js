@@ -515,20 +515,26 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNum
   const dupRowNums = [];
   const markedRanges = [];
 
+  const insertedKeyRowMap = new Map();
+  const insertedRanges = [];
+  
   for (const rowNum of insertedRowNumbers) {
     const range = sheet.getRange(`A${rowNum}:Z${rowNum}`);
     range.load("values");
-    await context.sync();
+    insertedRanges.push({ rowNum, range });
+  }
+  await context.sync();
+  
+  for (const { rowNum, range } of insertedRanges) {
     const row = range.values[0];
-
     const key = keyIndexes.map(i => (row[i] || "").toString().trim().toLowerCase()).join("|");
     const dupRows = existingKeyMap.get(key) || [];
-
+  
     if (dupRows.length > 0) {
       dupRowNums.push(rowNum);
       markedRanges.push(range);
       range.format.fill.color = "#FFFF99";
-
+  
       for (const dup of dupRows) {
         const dupRange = sheet.getRange(`A${dup}:Z${dup}`);
         markedRanges.push(dupRange);
@@ -536,6 +542,7 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNum
       }
     }
   }
+
 
   if (dupRowNums.length === 0) return;
 
