@@ -393,20 +393,21 @@ async function insertToExcel(mapped) {
     }
 
 // Leere Zeilen entfernen
-const fullRange = sheet.getUsedRange();
-fullRange.load(["values", "rowCount"]);
-await context.sync();
-
-const emptyRows = fullRange.values.map((row, idx) => ({
-  isEmpty: row.every(cell => cell === "" || cell === null),
-  idx
-})).filter(r => r.isEmpty).map(r => r.idx + 1).sort((a, b) => b - a); // Excel 1-based
-
-for (const row of emptyRows) {
-  sheet.getRange(`A${row}:Z${row}`).delete(Excel.DeleteShiftDirection.up);
-}
-await context.sync();
-await detectAndHandleDuplicates(context, sheet, excelHeaders, startRow + 1);
+    const fullRange = sheet.getUsedRange();
+    fullRange.load(["values", "rowCount"]);
+    await context.sync();
+    
+    const emptyRows = fullRange.values.map((row, idx) => ({
+      isEmpty: row.every(cell => cell === "" || cell === null),
+      idx
+    })).filter(r => r.isEmpty).map(r => r.idx + 1).sort((a, b) => b - a); // Excel 1-based
+    
+    for (const row of emptyRows) {
+      sheet.getRange(`A${row}:Z${row}`).delete(Excel.DeleteShiftDirection.up);
+    }
+    await context.sync();
+    await detectAndHandleDuplicates(context, sheet, excelHeaders, startRow + 1);
+  }
 }
 async function removeEmptyRows(context, sheet) {
   const usedRange = sheet.getUsedRange();
