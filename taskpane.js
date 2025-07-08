@@ -318,6 +318,7 @@ async function insertToExcel(mapped) {
     const usedRange = sheet.getUsedRange();
     usedRange.load(["values", "rowCount"]);
     await context.sync();
+    const startRow = usedRange.rowCount;
 
     const saved = loadSavedMappings();
     let headerMap = createHeaderMapWithAliases(excelHeaders, Object.keys(mapped), columnAliases);
@@ -368,7 +369,6 @@ async function insertToExcel(mapped) {
       } else {
         existingKeys.add(keyString);
         dataRows.push(row);
-        const insertedRowNumbers = [];
         insertedRowNumbers.push(startRow + insertedRowNumbers.length + 1); // Excel 1-based
       }
     }
