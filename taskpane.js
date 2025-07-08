@@ -501,7 +501,7 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNum
 
   const rows = usedRange.values;
   const rowMap = new Map();
-
+  rowMap.clear();
   rows.forEach((row, idx) => {
     const key = keyIndexes.map(i => (row[i] || "").toString().trim().toLowerCase()).join("|");
     if (!key) return;
