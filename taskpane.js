@@ -29,6 +29,11 @@ const columnAliases = {
   "Bemerkung": ["bemerkung", "bemerkungen"],
 };
 
+function extractVLPNumber(filename) {
+  const match = filename.match(/VLP[\s\-]*(\d+)/i);
+  return match ? `VLP ${match[1]}` : "";
+}
+
 function loadSavedMappings() {
   const json = localStorage.getItem(storageKey);
   return json ? JSON.parse(json) : {};
@@ -183,8 +188,11 @@ async function uploadPDF() {
         throw new Error(err.detail || "Serverfehler");
       }
 
-      const data = await res.json();
-      allResults.push(data);
+      let data = await res.json();
+      const vlpValue = extractVLPNumber(file.name);
+      const rowCount = Object.values(data)[0]?.length || 0;
+      data["VLP"] = Array(rowCount).fill(vlpValue);
+            allResults.push(data);
     } catch (err) {
       errors.push(`${file.name}: ${err.message}`);
     }
@@ -220,7 +228,10 @@ function previewInTable(mapped) {
   const preview = document.getElementById("preview");
   preview.innerHTML = "";
 
-  const headers = Object.keys(mapped);
+  const headers = [...Object.keys(mapped)];
+  if (!headers.includes("VLP")) {
+    headers.push("VLP");
+  }
   const maxLength = Math.max(...headers.map(k => mapped[k].length));
 
   const table = document.createElement("table");
@@ -305,7 +316,7 @@ async function insertToExcel(mapped) {
       for (let h = 0; h < colCount; h++) {
         const excelHeader = excelHeaders[h];
         const pdfKey = headerMap[excelHeader];
-        const colData = pdfKey ? mapped[pdfKey] : [];
+        const colData = mapped.hasOwnProperty(excelHeader) ? mapped[excelHeader] : (pdfKey ? mapped[pdfKey] : []);
         const val = colData[i] || "";
         row.push(val);
         if (keyIndexes.includes(h)) {
