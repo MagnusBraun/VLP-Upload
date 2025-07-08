@@ -343,7 +343,6 @@ async function insertToExcel(mapped) {
 
     const dataRows = [];
     const duplicates = [];
-    const insertedRowNumbers = [];
 
     for (let i = 0; i < maxRows; i++) {
       const row = [];
@@ -369,6 +368,7 @@ async function insertToExcel(mapped) {
       } else {
         existingKeys.add(keyString);
         dataRows.push(row);
+        const insertedRowNumbers = [];
         insertedRowNumbers.push(startRow + insertedRowNumbers.length + 1); // Excel 1-based
       }
     }
