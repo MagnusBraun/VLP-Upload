@@ -105,12 +105,13 @@ def extract_data_from_pdf(pdf_path):
                         for zeile_idx, row in enumerate(tabelle):
                             if not row:
                                 continue
-                           treffer = sum(
+                    
+                            treffer = sum(
                                 1 for cell in row
                                 if cell and isinstance(cell, str) and match_header(cell)
                             )
-
-                            if treffer >= 10:
+                    
+                            if treffer >= 6:
                                 header = make_unique(row)
                                 try:
                                     df = pd.DataFrame(tabelle[zeile_idx + 1:], columns=header)
