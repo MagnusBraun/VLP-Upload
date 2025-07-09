@@ -63,7 +63,6 @@ def match_header_prefer_exact(text):
             return key
     return None
 
-
 def extract_data_from_pdf(pdf_path):
     alle_daten = []
     with warnings.catch_warnings():
@@ -113,11 +112,10 @@ def extract_data_from_pdf(pdf_path):
                         if not tabelle or len(tabelle) < 2:
                             continue
 
-                        # Transponieren, damit wir spaltenweise durch Zeilen iterieren können
                         spalten = list(zip(*tabelle))
                         neue_header = []
                         inhalt_nach_header = []
-                        
+
                         for spalte in spalten:
                             header_idx = None
                             header_name = None
@@ -126,16 +124,15 @@ def extract_data_from_pdf(pdf_path):
                                 if header:
                                     header_idx = idx
                                     header_name = zelle
-                                    break  # Stoppe nach erstem Treffer
+                                    break  # Erstes exaktes oder gutes Match nehmen, dann abbrechen
                             if header_idx is not None:
                                 neue_header.append(header_name)
                                 inhalt_nach_header.append(list(spalte[header_idx+1:]))
                             else:
+                                # Fallback: erste Zelle nehmen
                                 neue_header.append(spalte[0] or f"unknown_{len(neue_header)}")
                                 inhalt_nach_header.append(list(spalte[1:]))
 
-
-                        # Jetzt wieder zurück transponieren zu Zeilen
                         daten_zeilen = list(zip(*inhalt_nach_header))
 
                         try:
