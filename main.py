@@ -49,7 +49,7 @@ def make_unique(columns):
             result.append(col)
     return result
 
-def match_header(text):
+def match_header_prefer_exact(text):
     if not isinstance(text, str): 
         return None
     t = text.strip().lower()
@@ -117,22 +117,23 @@ def extract_data_from_pdf(pdf_path):
                         spalten = list(zip(*tabelle))
                         neue_header = []
                         inhalt_nach_header = []
-
+                        
                         for spalte in spalten:
                             header_idx = None
+                            header_name = None
                             for idx, zelle in enumerate(spalte):
-                                if match_header(zelle):
+                                header = match_header_prefer_exact(zelle)
+                                if header:
                                     header_idx = idx
-                                    break
+                                    header_name = zelle
+                                    break  # Stoppe nach erstem Treffer
                             if header_idx is not None:
-                                header_name = spalte[header_idx]
                                 neue_header.append(header_name)
-                                # Ab Zeile header_idx+1 alle Werte dieser Spalte nehmen
                                 inhalt_nach_header.append(list(spalte[header_idx+1:]))
                             else:
-                                # Keine passende Header gefunden → dummy header und alle Zeilen ab 0
                                 neue_header.append(spalte[0] or f"unknown_{len(neue_header)}")
                                 inhalt_nach_header.append(list(spalte[1:]))
+
 
                         # Jetzt wieder zurück transponieren zu Zeilen
                         daten_zeilen = list(zip(*inhalt_nach_header))
