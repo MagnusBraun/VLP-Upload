@@ -78,7 +78,7 @@ def extract_data_from_pdf(pdf_path):
                             beste_score = score
                             beste_header_zeile = zeile_idx
                             beste_tabelle = tabelle
-                if beste_tabelle and beste_score >= 10:
+                if beste_tabelle and beste_score >= 5:
                     daten_ab_header = beste_tabelle[beste_header_zeile:]
                     header = daten_ab_header[0]
                     try:
