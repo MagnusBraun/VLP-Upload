@@ -50,12 +50,19 @@ def make_unique(columns):
     return result
 
 def match_header(text):
-    if not isinstance(text, str): return None
+    if not isinstance(text, str): 
+        return None
     t = text.strip().lower()
+    # 1) Exaktes Match zuerst prüfen
+    for key, syns in HEADER_MAP.items():
+        if t in [key.lower()] + [s.lower() for s in syns]:
+            return key
+    # 2) Falls kein exaktes Match → unscharfe Suche
     for key, syns in HEADER_MAP.items():
         if difflib.get_close_matches(t, [key.lower()] + [s.lower() for s in syns], n=1, cutoff=0.7):
             return key
     return None
+
 
 def extract_data_from_pdf(pdf_path):
     alle_daten = []
