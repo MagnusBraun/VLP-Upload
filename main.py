@@ -52,70 +52,42 @@ def make_unique(columns):
 def match_header(text):
     if not isinstance(text, str): return None
     t = text.strip().lower()
-    t = re.sub(r"[^a-z0-9]", "", t)  # entferne Trennzeichen
     for key, syns in HEADER_MAP.items():
-        for candidate in [key] + syns:
-            if re.sub(r"[^a-z0-9]", "", candidate.lower()) in t:
-                return key
+        if difflib.get_close_matches(t, [key.lower()] + [s.lower() for s in syns], n=1, cutoff=0.7):
+            return key
     return None
 
 def extract_data_from_pdf(pdf_path):
+    alle_daten = []
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         with pdfplumber.open(pdf_path) as pdf:
-            # Phase 1: normale Header-Zeile suchen
             for seite in pdf.pages:
                 try:
                     tables = seite.extract_tables()
                 except Exception:
                     continue
-                if not tables:
-                    continue
-
+                if not tables: continue
+                beste_tabelle = None
+                beste_score = 0
+                beste_header_zeile = None
                 for tabelle in tables:
                     for zeile_idx, row in enumerate(tabelle):
                         score = sum(1 for cell in row if match_header(cell))
-                        if score >= 10:
-                            header = make_unique(row)
-                            try:
-                                df = pd.DataFrame(tabelle[zeile_idx + 1:], columns=header)
-                                if not df.empty:
-                                    return df
-                            except Exception as e:
-                                print("⚠️ Fehler beim Aufbau des DataFrames (normal):", e)
-                                continue
-
-            # Phase 2: Fallback – kombinierte Headerzeile (2 Zeilen)
-            for seite in pdf.pages:
-                try:
-                    tables = seite.extract_tables()
-                except Exception:
-                    continue
-                if not tables:
-                    continue
-
-                for tabelle in tables:
-                    for zeile_idx in range(len(tabelle) - 1):
-                        zeile1 = tabelle[zeile_idx]
-                        zeile2 = tabelle[zeile_idx + 1]
-                        if not zeile1 or not zeile2:
-                            continue
-                        combined = [
-                            f"{(zeile1[i] or '').strip()} {(zeile2[i] or '').strip()}".strip()
-                            for i in range(min(len(zeile1), len(zeile2)))
-                        ]
-                        score = sum(1 for cell in combined if match_header(cell))
-                        if score >= 6:
-                            header = make_unique(combined)
-                            try:
-                                df = pd.DataFrame(tabelle[zeile_idx + 2:], columns=header)
-                                if not df.empty:
-                                    return df
-                            except Exception as e:
-                                print("⚠️ Fehler beim Aufbau des DataFrames (fallback):", e)
-                                continue
-    return pd.DataFrame()
-
+                        if score > beste_score:
+                            beste_score = score
+                            beste_header_zeile = zeile_idx
+                            beste_tabelle = tabelle
+                if beste_tabelle and beste_score >= 10:
+                    daten_ab_header = beste_tabelle[beste_header_zeile:]
+                    header = daten_ab_header[0]
+                    try:
+                        df = pd.DataFrame(daten_ab_header[1:], columns=make_unique(header))
+                        alle_daten.append(df)
+                    except Exception:
+                        continue
+                    break
+    return pd.concat(alle_daten, ignore_index=True) if alle_daten else pd.DataFrame()
 
 def map_columns_to_headers(df):
     mapped = {}
