@@ -62,15 +62,18 @@ def extract_data_from_pdf(pdf_path):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         with pdfplumber.open(pdf_path) as pdf:
+            beste_score = 0
+            beste_tabelle = None
+            beste_header_zeile = None
+
             for seite in pdf.pages:
                 try:
                     tables = seite.extract_tables()
                 except Exception:
                     continue
-                if not tables: continue
-                beste_tabelle = None
-                beste_score = 0
-                beste_header_zeile = None
+                if not tables:
+                    continue
+
                 for tabelle in tables:
                     for zeile_idx, row in enumerate(tabelle):
                         score = sum(1 for cell in row if match_header(cell))
@@ -78,15 +81,48 @@ def extract_data_from_pdf(pdf_path):
                             beste_score = score
                             beste_header_zeile = zeile_idx
                             beste_tabelle = tabelle
-                if beste_tabelle and beste_score >= 10:
-                    daten_ab_header = beste_tabelle[beste_header_zeile:]
-                    header = daten_ab_header[0]
+
+            if beste_tabelle and beste_score >= 10:
+                daten_ab_header = beste_tabelle[beste_header_zeile:]
+                header = daten_ab_header[0]
+                try:
+                    df = pd.DataFrame(daten_ab_header[1:], columns=make_unique(header))
+                    alle_daten.append(df)
+                except Exception:
+                    pass
+
+            # Fallback: keine valide Tabelle erkannt – suche nach flachen Header-Spalten
+            if not alle_daten:
+                for seite in pdf.pages:
                     try:
-                        df = pd.DataFrame(daten_ab_header[1:], columns=make_unique(header))
-                        alle_daten.append(df)
+                        tables = seite.extract_tables()
                     except Exception:
                         continue
-                    break
+                    if not tables:
+                        continue
+
+                    for tabelle in tables:
+                        for zeile_idx, row in enumerate(tabelle[:-1]):
+                            nächste_zeile = tabelle[zeile_idx + 1]
+                            if not row or not nächste_zeile:
+                                continue
+
+                            # ignoriere zusammengesetzte Überschriften (Spalten ohne echte Header)
+                            erkennbare_header = [match_header(cell) for cell in nächste_zeile]
+                            treffer = sum(1 for h in erkennbare_header if h is not None)
+
+                            if treffer >= 6:
+                                header = make_unique(nächste_zeile)
+                                try:
+                                    df = pd.DataFrame(tabelle[zeile_idx + 2:], columns=header)
+                                    if not df.empty:
+                                        alle_daten.append(df)
+                                        return pd.concat(alle_daten, ignore_index=True)
+                                except Exception:
+                                    continue
+
+    return pd.concat(alle_daten, ignore_index=True) if alle_daten else pd.DataFrame()
+
     return pd.concat(alle_daten, ignore_index=True) if alle_daten else pd.DataFrame()
 
 def map_columns_to_headers(df):
