@@ -128,8 +128,8 @@ def extract_data_from_pdf(pdf_path):
                             header_idx = None
                             header_name = None
                             found_exact = False
-                        
-                            # Erst alle Zeilen durchgehen und nach exaktem Match suchen
+
+                            # Erst nach exaktem Match suchen
                             for idx, zelle in enumerate(spalte):
                                 if not isinstance(zelle, str):
                                     continue
@@ -141,43 +141,36 @@ def extract_data_from_pdf(pdf_path):
                                         found_exact = True
                                         break
                                 if found_exact:
-                                    break  # Exaktes Match gefunden, fertig
-                        
-                            # Falls kein exaktes Match, fuzzy suchen
+                                    break
+
+                            # Falls kein exaktes Match gefunden, fuzzy suchen
                             if header_idx is None:
                                 for idx, zelle in enumerate(spalte):
-                                    header = match_header(zelle)  # fuzzy Funktion
+                                    header = match_header(zelle)
                                     if header:
                                         header_idx = idx
                                         header_name = zelle
                                         break
-                        
+
                             if header_idx is not None:
                                 neue_header.append(header_name)
                                 inhalt_nach_header.append(list(spalte[header_idx+1:]))
                             else:
                                 neue_header.append(spalte[0] or f"unknown_{len(neue_header)}")
                                 inhalt_nach_header.append(list(spalte[1:]))
-    
-                                if header_idx is not None:
-                                    neue_header.append(header_name)
-                                    inhalt_nach_header.append(list(spalte[header_idx+1:]))
-                                else:
-                                    # Fallback: erste Zelle nehmen
-                                    neue_header.append(spalte[0] or f"unknown_{len(neue_header)}")
-                                    inhalt_nach_header.append(list(spalte[1:]))
 
                         daten_zeilen = list(zip(*inhalt_nach_header))
 
                         try:
                             df = pd.DataFrame(daten_zeilen, columns=make_unique(neue_header))
+                            df = df.dropna(how='all')  # komplett leere Zeilen entfernen
+                            df = df[df.notna().sum(axis=1) >= 3]  # nur Zeilen mit ≥ 3 Werten behalten
                             if not df.empty:
                                 alle_daten.append(df)
                         except Exception:
                             continue
 
     return pd.concat(alle_daten, ignore_index=True) if alle_daten else pd.DataFrame()
-
 
 def map_columns_to_headers(df):
     mapped = {}
