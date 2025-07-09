@@ -499,42 +499,41 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNum
 
   if (keyIndexes.length < 2) return;
 
-  const usedRange = sheet.getUsedRange();
-  usedRange.load(["values", "rowCount"]);
+  // Erfasse nur die Excel-Zeilen VOR dem Einfügen
+  const existingRange = sheet.getUsedRange();
+  existingRange.load(["values", "rowCount"]);
   await context.sync();
 
-  const allRows = usedRange.values;
+  const existingRows = existingRange.values.slice(1, existingRange.rowCount - insertedRowNumbers.length);
 
   const existingKeyMap = new Map();
-  allRows.slice(1).forEach((row, idx) => {
+  existingRows.forEach((row, idx) => {
     const key = keyIndexes.map(i => (row[i] || "").toString().trim().toLowerCase()).join("|");
     if (!existingKeyMap.has(key)) existingKeyMap.set(key, []);
-    existingKeyMap.get(key).push(idx + 2); // Excel rows start at 1, +1 for skipping header
+    existingKeyMap.get(key).push(idx + 2); // Excel rows start at 1, +1 for header
   });
 
   const dupRowNums = [];
   const markedRanges = [];
 
-  const insertedKeyRowMap = new Map();
   const insertedRanges = [];
-  
   for (const rowNum of insertedRowNumbers) {
     const range = sheet.getRange(`A${rowNum}:Z${rowNum}`);
     range.load("values");
     insertedRanges.push({ rowNum, range });
   }
   await context.sync();
-  
+
   for (const { rowNum, range } of insertedRanges) {
     const row = range.values[0];
     const key = keyIndexes.map(i => (row[i] || "").toString().trim().toLowerCase()).join("|");
     const dupRows = existingKeyMap.get(key) || [];
-  
+
     if (dupRows.length > 0) {
       dupRowNums.push(rowNum);
       markedRanges.push(range);
       range.format.fill.color = "#FFFF99";
-  
+
       for (const dup of dupRows) {
         const dupRange = sheet.getRange(`A${dup}:Z${dup}`);
         markedRanges.push(dupRange);
@@ -543,8 +542,9 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNum
     }
   }
 
-
   if (dupRowNums.length === 0) return;
+
+  await context.sync();
 
   await new Promise(resolve => {
     showConfirmDialog(
@@ -554,6 +554,7 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNum
         for (const row of sorted) {
           sheet.getRange(`A${row}:Z${row}`).delete(Excel.DeleteShiftDirection.up);
         }
+        await context.sync();
         resolve();
       },
       async () => {
