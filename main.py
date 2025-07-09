@@ -26,14 +26,14 @@ HEADER_MAP = {
     "Trommelnummer": ["Trommel", "trommelnummer", "Trommel-nummer"],
     "von Ort": ["von ort", "start ort"],
     "von km": ["von km", "start km", "anfang km"],
-    "Metr.(von)": ["metr", "meter", "metr.", "Metr."],
+    "Metr.(von)": ["metr", "meter", "metr.", "Metr.", "Metrier.", "metrier.", "Metrierung", "metrierung"],
     "bis Ort": ["bis ort", "ziel ort", "end ort"],
     "bis km": ["bis km", "ziel km", "end km"],
-    "Metr.(bis)": ["metr", "meter", "metr.","Metr."],
+    "Metr.(bis)": ["metr", "meter", "metr.","Metr.", "Metrier.", "metrier.", "Metrierung", "metrierung"],
     "SOLL": ["soll", "sollwert", "soll m"],
     "IST": ["ist", "istwert", "ist m"],
-    "Verlegeart": ["verlegeart", "verlegung", "verlegungsart"],
-    "Bemerkung": ["Bemerkungen","bemerkung","bemerkungen", "notiz", "kommentar", "Kommentar", "Anmerkung", "anmerkung"]
+    "Verlegeart": ["verlegeart", "verlegungsart", "Verlegeart Hand/Masch.", "VerlegeartHand/Masch.","verlegeart Hand/Masch.",],
+    "Bemerkung": ["Bemerkungen","bemerkung","bemerkungen", "notiz", "kommentar", "Kommentar", "Anmerkung", "anmerkung","Bemerkungen Besonderheiten","BemerkungenBesonderheiten","Besonderheiten","besonderheiten"]
 }
 
 def make_unique(columns):
