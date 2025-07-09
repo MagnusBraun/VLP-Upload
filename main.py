@@ -164,7 +164,7 @@ def extract_data_from_pdf(pdf_path):
                         try:
                             df = pd.DataFrame(daten_zeilen, columns=make_unique(neue_header))
                             df = df.dropna(how='all')  # komplett leere Zeilen entfernen
-                            df = df[df.notna().sum(axis=1) >= 3]  # nur Zeilen mit ≥ 3 Werten behalten
+                            df = df[df.notna().sum(axis=1) >= 4]  # nur Zeilen mit ≥ 3 Werten behalten
                             if not df.empty:
                                 alle_daten.append(df)
                         except Exception:
