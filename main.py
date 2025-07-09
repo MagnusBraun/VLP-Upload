@@ -67,21 +67,18 @@ def extract_data_from_pdf(pdf_path):
                     tables = seite.extract_tables()
                 except Exception:
                     continue
-                if not tables:
-                    continue
+                if not tables: continue
                 beste_tabelle = None
                 beste_score = 0
                 beste_header_zeile = None
                 for tabelle in tables:
                     for zeile_idx, row in enumerate(tabelle):
-                        if not row or all(cell is None or str(cell).strip() == "" for cell in row):
-                            continue
                         score = sum(1 for cell in row if match_header(cell))
                         if score > beste_score:
                             beste_score = score
                             beste_header_zeile = zeile_idx
                             beste_tabelle = tabelle
-                if beste_tabelle and beste_header_zeile is not None:
+                if beste_tabelle and beste_score >= 10:
                     daten_ab_header = beste_tabelle[beste_header_zeile:]
                     header = daten_ab_header[0]
                     try:
@@ -89,7 +86,7 @@ def extract_data_from_pdf(pdf_path):
                         alle_daten.append(df)
                     except Exception:
                         continue
-                    break  # Nur erste gute Tabelle verwenden
+                    break
     return pd.concat(alle_daten, ignore_index=True) if alle_daten else pd.DataFrame()
 
 def map_columns_to_headers(df):
