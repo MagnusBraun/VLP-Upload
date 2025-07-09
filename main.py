@@ -49,6 +49,14 @@ def make_unique(columns):
             result.append(col)
     return result
 
+def match_header(text):
+    if not isinstance(text, str): return None
+    t = text.strip().lower()
+    for key, syns in HEADER_MAP.items():
+        if difflib.get_close_matches(t, [key.lower()] + [s.lower() for s in syns], n=1, cutoff=0.7):
+            return key
+    return None
+
 def match_header_prefer_exact(text):
     if not isinstance(text, str): 
         return None
