@@ -111,7 +111,7 @@ def extract_data_from_pdf(pdf_path):
                                 if cell and isinstance(cell, str) and match_header(cell)
                             )
                     
-                            if treffer >= 6:
+                            if treffer >= 12:
                                 header = make_unique(row)
                                 try:
                                     df = pd.DataFrame(tabelle[zeile_idx + 1:], columns=header)
