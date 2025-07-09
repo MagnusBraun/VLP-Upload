@@ -58,7 +58,6 @@ def match_header(text):
     return None
 
 def extract_data_from_pdf(pdf_path):
-    alle_daten = []
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         with pdfplumber.open(pdf_path) as pdf:
@@ -67,27 +66,26 @@ def extract_data_from_pdf(pdf_path):
                     tables = seite.extract_tables()
                 except Exception:
                     continue
-                if not tables: continue
-                beste_tabelle = None
-                beste_score = 0
-                beste_header_zeile = None
+                if not tables:
+                    continue
+
                 for tabelle in tables:
+                    # Teste ALLE Zeilen für beste Header-Zeile
                     for zeile_idx, row in enumerate(tabelle):
+                        if not row or all(cell is None or str(cell).strip() == "" for cell in row):
+                            continue
                         score = sum(1 for cell in row if match_header(cell))
-                        if score > beste_score:
-                            beste_score = score
-                            beste_header_zeile = zeile_idx
-                            beste_tabelle = tabelle
-                if beste_tabelle and beste_score >= 10:
-                    daten_ab_header = beste_tabelle[beste_header_zeile:]
-                    header = daten_ab_header[0]
-                    try:
-                        df = pd.DataFrame(daten_ab_header[1:], columns=make_unique(header))
-                        alle_daten.append(df)
-                    except Exception:
-                        continue
-                    break
-    return pd.concat(alle_daten, ignore_index=True) if alle_daten else pd.DataFrame()
+                        if score >= 5:
+                            daten_ab_header = tabelle[zeile_idx:]
+                            header = make_unique(daten_ab_header[0])
+                            try:
+                                df = pd.DataFrame(daten_ab_header[1:], columns=header)
+                                if not df.empty:
+                                    return df
+                            except Exception:
+                                continue
+    return pd.DataFrame()
+
 
 def map_columns_to_headers(df):
     mapped = {}
