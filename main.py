@@ -58,7 +58,8 @@ def match_header(text):
     return None
 
 def extract_data_from_pdf(pdf_path):
-    alle_daten = []
+    all
+e_daten = []
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         with pdfplumber.open(pdf_path) as pdf:
@@ -91,37 +92,32 @@ def extract_data_from_pdf(pdf_path):
                 except Exception:
                     pass
 
-            # Fallback: keine valide Tabelle erkannt – suche nach flachen Header-Spalten
-           # Fallback: falls keine Tabelle mit starker Headerzeile erkannt wurde
-        if not alle_daten:
-            for seite in pdf.pages:
-                try:
-                    tables = seite.extract_tables()
-                except Exception:
-                    continue
-                if not tables:
-                    continue
-        
-                for tabelle in tables:
-                    for zeile_idx in range(len(tabelle)):
-                        row = tabelle[zeile_idx]
-                        if not row:
-                            continue
-        
-                        # prüfen ob Zelle selbst ein Header ist – auch wenn KEINE Blocküberschrift drübersteht
-                        erkennbare_header = [match_header(cell) for cell in row]
-                        treffer = sum(1 for h in erkennbare_header if h is not None)
-        
-                        if treffer >= 6:
-                            header = make_unique(row)
-                            try:
-                                df = pd.DataFrame(tabelle[zeile_idx + 1:], columns=header)
-                                if not df.empty:
-                                    alle_daten.append(df)
-                                    return pd.concat(alle_daten, ignore_index=True)
-                            except Exception:
-                                continue
+            # Fallback: jede Zeile als potenzieller Header prüfen
+            if not alle_daten:
+                for seite in pdf.pages:
+                    try:
+                        tables = seite.extract_tables()
+                    except Exception:
+                        continue
+                    if not tables:
+                        continue
 
+                    for tabelle in tables:
+                        for zeile_idx, row in enumerate(tabelle):
+                            if not row:
+                                continue
+                            erkennbare_header = [match_header(cell) for cell in row]
+                            treffer = sum(1 for h in erkennbare_header if h is not None)
+
+                            if treffer >= 6:
+                                header = make_unique(row)
+                                try:
+                                    df = pd.DataFrame(tabelle[zeile_idx + 1:], columns=header)
+                                    if not df.empty:
+                                        alle_daten.append(df)
+                                        return pd.concat(alle_daten, ignore_index=True)
+                                except Exception:
+                                    continue
 
     return pd.concat(alle_daten, ignore_index=True) if alle_daten else pd.DataFrame()
 
