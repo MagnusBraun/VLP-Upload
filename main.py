@@ -92,7 +92,7 @@ def extract_data_from_pdf(pdf_path):
                     continue
                 if not tables:
                     continue
-
+            
                 for tabelle in tables:
                     for zeile_idx in range(len(tabelle) - 1):
                         zeile1 = tabelle[zeile_idx]
@@ -100,7 +100,7 @@ def extract_data_from_pdf(pdf_path):
                         if not zeile1 or not zeile2:
                             continue
                         combined = [
-                            f\"{(zeile1[i] or '').strip()} {(zeile2[i] or '').strip()}\".strip()
+                            f"{(zeile1[i] or '').strip()} {(zeile2[i] or '').strip()}".strip()
                             for i in range(min(len(zeile1), len(zeile2)))
                         ]
                         score = sum(1 for cell in combined if match_header(cell))
@@ -112,6 +112,7 @@ def extract_data_from_pdf(pdf_path):
                                     return df
                             except Exception:
                                 continue
+
 
     return pd.DataFrame()
 
