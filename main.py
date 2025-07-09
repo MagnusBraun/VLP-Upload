@@ -52,9 +52,11 @@ def make_unique(columns):
 def match_header(text):
     if not isinstance(text, str): return None
     t = text.strip().lower()
+    t = re.sub(r"[^a-z0-9]", "", t)  # entferne Trennzeichen
     for key, syns in HEADER_MAP.items():
-        if difflib.get_close_matches(t, [key.lower()] + [s.lower() for s in syns], n=1, cutoff=0.7):
-            return key
+        for candidate in [key] + syns:
+            if re.sub(r"[^a-z0-9]", "", candidate.lower()) in t:
+                return key
     return None
 
 def extract_data_from_pdf(pdf_path):
