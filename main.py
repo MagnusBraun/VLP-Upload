@@ -58,8 +58,7 @@ def match_header(text):
     return None
 
 def extract_data_from_pdf(pdf_path):
-    all
-e_daten = []
+    alle_daten = []
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         with pdfplumber.open(pdf_path) as pdf:
