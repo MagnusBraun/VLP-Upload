@@ -125,8 +125,6 @@ def extract_data_from_pdf(pdf_path):
 
     return pd.concat(alle_daten, ignore_index=True) if alle_daten else pd.DataFrame()
 
-    return pd.concat(alle_daten, ignore_index=True) if alle_daten else pd.DataFrame()
-
 def map_columns_to_headers(df):
     mapped = {}
     metr_spalten = []
