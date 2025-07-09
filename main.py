@@ -125,14 +125,40 @@ def extract_data_from_pdf(pdf_path):
                         inhalt_nach_header = []
 
                         for spalte in spalten:
-                            header_idx = None
-                            header_name = None
+                        header_idx = None
+                        header_name = None
+                        found_exact = False
+                    
+                        # Erst alle Zeilen durchgehen und nach exaktem Match suchen
+                        for idx, zelle in enumerate(spalte):
+                            if not isinstance(zelle, str):
+                                continue
+                            t = zelle.strip().lower()
+                            for key, syns in HEADER_MAP.items():
+                                if t in [key.lower()] + [s.lower() for s in syns]:
+                                    header_idx = idx
+                                    header_name = zelle
+                                    found_exact = True
+                                    break
+                            if found_exact:
+                                break  # Exaktes Match gefunden, fertig
+                    
+                        # Falls kein exaktes Match, fuzzy suchen
+                        if header_idx is None:
                             for idx, zelle in enumerate(spalte):
-                                header = match_header_prefer_exact(zelle)
+                                header = match_header(zelle)  # fuzzy Funktion
                                 if header:
                                     header_idx = idx
                                     header_name = zelle
-                                    break  # Erstes exaktes oder gutes Match nehmen, dann abbrechen
+                                    break
+                    
+                        if header_idx is not None:
+                            neue_header.append(header_name)
+                            inhalt_nach_header.append(list(spalte[header_idx+1:]))
+                        else:
+                            neue_header.append(spalte[0] or f"unknown_{len(neue_header)}")
+                            inhalt_nach_header.append(list(spalte[1:]))
+
                             if header_idx is not None:
                                 neue_header.append(header_name)
                                 inhalt_nach_header.append(list(spalte[header_idx+1:]))
