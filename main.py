@@ -105,10 +105,12 @@ def extract_data_from_pdf(pdf_path):
                         for zeile_idx, row in enumerate(tabelle):
                             if not row:
                                 continue
-                            erkennbare_header = [match_header(cell) for cell in row]
-                            treffer = sum(1 for h in erkennbare_header if h is not None)
+                           treffer = sum(
+                                1 for cell in row
+                                if cell and isinstance(cell, str) and match_header(cell)
+                            )
 
-                            if treffer >= 6:
+                            if treffer >= 10:
                                 header = make_unique(row)
                                 try:
                                     df = pd.DataFrame(tabelle[zeile_idx + 1:], columns=header)
