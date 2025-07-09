@@ -524,6 +524,8 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNum
   }
   await context.sync();
 
+  const staticMarkedDupRanges = [];
+
   for (const { rowNum, range } of insertedRanges) {
     const row = range.values[0];
     const key = keyIndexes.map(i => (row[i] || "").toString().trim().toLowerCase()).join("|");
@@ -536,7 +538,7 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNum
 
       for (const dup of dupRows) {
         const dupRange = sheet.getRange(`A${dup}:Z${dup}`);
-        markedRanges.push(dupRange);
+        staticMarkedDupRanges.push(dupRange);
         dupRange.format.fill.color = "#FFFF99";
       }
     }
@@ -563,7 +565,8 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNum
     );
   });
 
-  for (const range of markedRanges) {
+  const allMarkedRanges = [...markedRanges, ...staticMarkedDupRanges];
+  for (const range of allMarkedRanges) {
     range.format.fill.clear();
   }
 
