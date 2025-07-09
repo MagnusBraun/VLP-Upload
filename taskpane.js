@@ -569,17 +569,6 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNum
   await context.sync();
 }
 
-
-  // Markierung zurücksetzen
-  for (const range of markedRanges) {
-    range.format.fill.clear();
-  }
-
-  await context.sync();
-}
-
-
-
 function showError(msg) {
   const preview = document.getElementById("preview");
   preview.innerHTML = `<div style="color:red;font-weight:bold">${msg}</div>`;
