@@ -524,7 +524,7 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNum
   }
   await context.sync();
 
-  const staticMarkedDupRanges = [];
+  const staticMarkedDupRows = new Set();
 
   for (const { rowNum, range } of insertedRanges) {
     const row = range.values[0];
@@ -533,12 +533,12 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNum
 
     if (dupRows.length > 0) {
       dupRowNums.push(rowNum);
-      markedRanges.push(range);
+      markedRanges.push({ rowNum, range });
       range.format.fill.color = "#FFFF99";
 
       for (const dup of dupRows) {
         const dupRange = sheet.getRange(`A${dup}:Z${dup}`);
-        staticMarkedDupRanges.push(dupRange);
+        staticMarkedDupRows.add(dup);
         dupRange.format.fill.color = "#FFFF99";
       }
     }
@@ -557,20 +557,32 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNum
           sheet.getRange(`A${row}:Z${row}`).delete(Excel.DeleteShiftDirection.up);
         }
         await context.sync();
+
+        // Nach Löschung: alle Zellen neu durchsuchen und Markierung entfernen
+        const cleanedRange = sheet.getUsedRange();
+        cleanedRange.load(["values", "rowCount"]);
+        await context.sync();
+
+        const visibleRows = cleanedRange.rowCount;
+        for (let r = 2; r <= visibleRows; r++) {
+          sheet.getRange(`A${r}:Z${r}`).format.fill.clear();
+        }
+
+        await context.sync();
         resolve();
       },
       async () => {
+        for (const { range } of markedRanges) {
+          range.format.fill.clear();
+        }
+        for (const dup of staticMarkedDupRows) {
+          sheet.getRange(`A${dup}:Z${dup}`).format.fill.clear();
+        }
+        await context.sync();
         resolve();
       }
     );
   });
-
-  const allMarkedRanges = [...markedRanges, ...staticMarkedDupRanges];
-  for (const range of allMarkedRanges) {
-    range.format.fill.clear();
-  }
-
-  await context.sync();
 }
 
 function showError(msg) {
