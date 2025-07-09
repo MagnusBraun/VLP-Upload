@@ -81,7 +81,8 @@ def extract_data_from_pdf(pdf_path):
                                 df = pd.DataFrame(tabelle[zeile_idx + 1:], columns=header)
                                 if not df.empty:
                                     return df
-                            except Exception:
+                            except Exception as e:
+                                print("⚠️ Fehler beim Aufbau des DataFrames (normal):", e)
                                 continue
 
             # Phase 2: Fallback – kombinierte Headerzeile (2 Zeilen)
@@ -92,7 +93,7 @@ def extract_data_from_pdf(pdf_path):
                     continue
                 if not tables:
                     continue
-            
+
                 for tabelle in tables:
                     for zeile_idx in range(len(tabelle) - 1):
                         zeile1 = tabelle[zeile_idx]
@@ -110,10 +111,9 @@ def extract_data_from_pdf(pdf_path):
                                 df = pd.DataFrame(tabelle[zeile_idx + 2:], columns=header)
                                 if not df.empty:
                                     return df
-                            except Exception:
+                            except Exception as e:
+                                print("⚠️ Fehler beim Aufbau des DataFrames (fallback):", e)
                                 continue
-
-
     return pd.DataFrame()
 
 
