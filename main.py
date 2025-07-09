@@ -63,6 +63,7 @@ def extract_data_from_pdf(pdf_path):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         with pdfplumber.open(pdf_path) as pdf:
+            # Phase 1: normale Header-Zeile suchen
             for seite in pdf.pages:
                 try:
                     tables = seite.extract_tables()
@@ -72,20 +73,46 @@ def extract_data_from_pdf(pdf_path):
                     continue
 
                 for tabelle in tables:
-                    # Teste ALLE Zeilen für beste Header-Zeile
                     for zeile_idx, row in enumerate(tabelle):
-                        if not row or all(cell is None or str(cell).strip() == "" for cell in row):
-                            continue
                         score = sum(1 for cell in row if match_header(cell))
-                        if score >= 5:
-                            daten_ab_header = tabelle[zeile_idx:]
-                            header = make_unique(daten_ab_header[0])
+                        if score >= 10:
+                            header = make_unique(row)
                             try:
-                                df = pd.DataFrame(daten_ab_header[1:], columns=header)
+                                df = pd.DataFrame(tabelle[zeile_idx + 1:], columns=header)
                                 if not df.empty:
                                     return df
                             except Exception:
                                 continue
+
+            # Phase 2: Fallback – kombinierte Headerzeile (2 Zeilen)
+            for seite in pdf.pages:
+                try:
+                    tables = seite.extract_tables()
+                except Exception:
+                    continue
+                if not tables:
+                    continue
+
+                for tabelle in tables:
+                    for zeile_idx in range(len(tabelle) - 1):
+                        zeile1 = tabelle[zeile_idx]
+                        zeile2 = tabelle[zeile_idx + 1]
+                        if not zeile1 or not zeile2:
+                            continue
+                        combined = [
+                            f\"{(zeile1[i] or '').strip()} {(zeile2[i] or '').strip()}\".strip()
+                            for i in range(min(len(zeile1), len(zeile2)))
+                        ]
+                        score = sum(1 for cell in combined if match_header(cell))
+                        if score >= 6:
+                            header = make_unique(combined)
+                            try:
+                                df = pd.DataFrame(tabelle[zeile_idx + 2:], columns=header)
+                                if not df.empty:
+                                    return df
+                            except Exception:
+                                continue
+
     return pd.DataFrame()
 
 
