@@ -82,6 +82,7 @@ def extract_data_from_pdf(pdf_path):
                             beste_header_zeile = zeile_idx
                             beste_tabelle = tabelle
 
+            # Standardweg: wenn ausreichend bekannte Header erkannt wurden
             if beste_tabelle and beste_score >= 10:
                 daten_ab_header = beste_tabelle[beste_header_zeile:]
                 header = daten_ab_header[0]
@@ -91,7 +92,7 @@ def extract_data_from_pdf(pdf_path):
                 except Exception:
                     pass
 
-            # Fallback: jede Zeile als potenzieller Header prüfen
+            # Fallback: spaltenorientiert Header suchen
             if not alle_daten:
                 for seite in pdf.pages:
                     try:
@@ -102,26 +103,42 @@ def extract_data_from_pdf(pdf_path):
                         continue
 
                     for tabelle in tables:
-                        for zeile_idx, row in enumerate(tabelle):
-                            if not row:
-                                continue
-                    
-                            treffer = sum(
-                                1 for cell in row
-                                if cell and isinstance(cell, str) and match_header(cell)
-                            )
-                    
-                            if treffer >= 12:
-                                header = make_unique(row)
-                                try:
-                                    df = pd.DataFrame(tabelle[zeile_idx + 1:], columns=header)
-                                    if not df.empty:
-                                        alle_daten.append(df)
-                                        return pd.concat(alle_daten, ignore_index=True)
-                                except Exception:
-                                    continue
+                        if not tabelle or len(tabelle) < 2:
+                            continue
+
+                        # Transponieren, damit wir spaltenweise durch Zeilen iterieren können
+                        spalten = list(zip(*tabelle))
+                        neue_header = []
+                        inhalt_nach_header = []
+
+                        for spalte in spalten:
+                            header_idx = None
+                            for idx, zelle in enumerate(spalte):
+                                if match_header(zelle):
+                                    header_idx = idx
+                                    break
+                            if header_idx is not None:
+                                header_name = spalte[header_idx]
+                                neue_header.append(header_name)
+                                # Ab Zeile header_idx+1 alle Werte dieser Spalte nehmen
+                                inhalt_nach_header.append(list(spalte[header_idx+1:]))
+                            else:
+                                # Keine passende Header gefunden → dummy header und alle Zeilen ab 0
+                                neue_header.append(spalte[0] or f"unknown_{len(neue_header)}")
+                                inhalt_nach_header.append(list(spalte[1:]))
+
+                        # Jetzt wieder zurück transponieren zu Zeilen
+                        daten_zeilen = list(zip(*inhalt_nach_header))
+
+                        try:
+                            df = pd.DataFrame(daten_zeilen, columns=make_unique(neue_header))
+                            if not df.empty:
+                                alle_daten.append(df)
+                        except Exception:
+                            continue
 
     return pd.concat(alle_daten, ignore_index=True) if alle_daten else pd.DataFrame()
+
 
 def map_columns_to_headers(df):
     mapped = {}
