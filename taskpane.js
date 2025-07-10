@@ -397,8 +397,6 @@ async function insertToExcel(mapped) {
       sortRange.sort.apply([{ key: kabelIndex, ascending: true }]);
       await context.sync();
     }
-    await applyDuplicateBoxHighlightingAfterSort(context, sheet);
-
     // 🧹 Leere Zeilen entfernen
     const fullRange = sheet.getUsedRange();
     fullRange.load(["values", "rowCount"]);
@@ -413,6 +411,7 @@ async function insertToExcel(mapped) {
       sheet.getRange(`A${row}:Z${row}`).delete(Excel.DeleteShiftDirection.up);
     }
     await context.sync();
+    await applyDuplicateBoxHighlightingAfterSort(context, sheet);
   });
 }
 
