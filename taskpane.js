@@ -576,24 +576,35 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNum
         resolve();
       },
       async () => {
-        // 2. Alte Zeilen ersetzen
+        // 2. ALTE ZEILEN ERSETZEN (nach dem Löschen: nochmal clear auf die neuen Reihenfolge!)
         for (const row of [...dupeOldRows].sort((a, b) => b - a)) {
           sheet.getRangeByIndexes(row - 1, 0, 1, headers.length).delete(Excel.DeleteShiftDirection.up);
         }
-        for (const row of dupeNewRows) {
-          sheet.getRangeByIndexes(row - 1, startCol, 1, colCount).format.fill.clear();
+        await context.sync();
+
+        const updatedRange = sheet.getUsedRange();
+        updatedRange.load(["rowCount"]);
+        await context.sync();
+
+        const remainingStartRow = updatedRange.rowCount - insertedRowNumbers.length + 1;
+
+        for (let i = 0; i < insertedRowNumbers.length; i++) {
+          const rowIndex = remainingStartRow + i - 1;
+          const clearRange = sheet.getRangeByIndexes(rowIndex, startCol, 1, colCount);
+          clearRange.format.fill.clear();
         }
+
         await context.sync();
         resolve();
       },
       async () => {
-        // 3. Behalten – später umrahmen (Zeilenpaare)
+        // 3. BEHALTEN & später umrahmen
         for (const row of [...dupeOldRows, ...dupeNewRows]) {
           sheet.getRangeByIndexes(row - 1, startCol, 1, colCount).format.fill.clear();
         }
 
-        const json = JSON.stringify({ pairs: duplicateKeyPairs, startCol, colCount });
-        sheet.names.add("DuplikatPaare", json);
+        // In Workbook-Einstellungen speichern (statt in NamedRange!)
+        context.workbook.settings.add("DuplikatPaare", JSON.stringify({ pairs: duplicateKeyPairs, startCol, colCount }));
         await context.sync();
         resolve();
       }
@@ -601,29 +612,29 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNum
   });
 }
 
+
 async function applyDuplicateBoxHighlightingAfterSort(context, sheet) {
-  const named = sheet.names.getItemOrNullObject("DuplikatPaare");
+  const setting = context.workbook.settings.getItemOrNullObject("DuplikatPaare");
   await context.sync();
 
-  if (named.isNullObject) return;
+  if (setting.isNullObject) return;
 
-  const raw = named.getValue();
+  const raw = setting.value;
   if (!raw) return;
-  named.delete();
+  setting.delete();
+  await context.sync();
 
   const { pairs, startCol, colCount } = JSON.parse(raw);
-  const allRowPairs = {};
+  const pairMap = {};
 
-  for (const [row1, row2] of pairs) {
-    const minRow = Math.min(row1, row2);
-    const maxRow = Math.max(row1, row2);
-    const key = `${minRow}-${maxRow}`;
-    allRowPairs[key] = [minRow, maxRow];
+  for (const [r1, r2] of pairs) {
+    const min = Math.min(r1, r2);
+    const max = Math.max(r1, r2);
+    pairMap[`${min}-${max}`] = [min, max];
   }
 
-  for (const [minRow, maxRow] of Object.values(allRowPairs)) {
-    const range = sheet.getRangeByIndexes(minRow - 1, startCol, maxRow - minRow + 1, colCount);
-
+  for (const [row1, row2] of Object.values(pairMap)) {
+    const range = sheet.getRangeByIndexes(row1 - 1, startCol, row2 - row1 + 1, colCount);
     const borders = range.format.borders;
     ["EdgeTop", "EdgeBottom", "EdgeLeft", "EdgeRight"].forEach(edge => {
       const border = borders.getItem(edge);
@@ -634,6 +645,7 @@ async function applyDuplicateBoxHighlightingAfterSort(context, sheet) {
 
   await context.sync();
 }
+
 
 
 function showError(msg) {
