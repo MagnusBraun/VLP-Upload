@@ -7,6 +7,27 @@ Office.onReady(() => {
 
 const apiUrl = "https://vlp-upload.onrender.com/process";
 const storageKey = "pmfusion-column-mapping";
+document.getElementById("uploadKuepBtn").addEventListener("click", () => {
+  document.getElementById("kuepFileInput").click();
+});
+
+document.getElementById("kuepFileInput").addEventListener("change", async (event) => {
+  const file = event.target.files[0];
+  if (file) {
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await fetch("https://dein-backend-url.onrender.com/process_kuep", {
+      method: "POST",
+      body: formData
+    });
+    if (response.ok) {
+      const data = await response.json();
+      insertKuepDataToExcel(data);
+    } else {
+      console.error("Fehler beim Verarbeiten des KÜP");
+    }
+  }
+});
 
 function normalizeLabel(label) {
   return label.toLowerCase().replace(/[^a-z0-9]/gi, "");
