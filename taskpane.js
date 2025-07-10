@@ -392,16 +392,15 @@ async function insertToExcel(mapped) {
     
     const invalidRows = [];
     
-    for (const rowNum of insertedRowNumbers) {
+    const rowRanges = insertedRowNumbers.map(rowNum => {
       const range = sheet.getRangeByIndexes(rowNum - 1, 0, 1, colCount);
       range.load("values");
-    }
+      return { rowNum, range };
+    });
     await context.sync();
     
-    for (const rowNum of insertedRowNumbers) {
-      const range = sheet.getRangeByIndexes(rowNum - 1, 0, 1, colCount);
+    for (const { rowNum, range } of rowRanges) {
       const values = range.values[0];
-    
       const allRelevantEmpty = cleanupIndexes.every(i =>
         !values[i] || values[i].toString().trim() === ""
       );
