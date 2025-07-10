@@ -383,6 +383,39 @@ async function insertToExcel(mapped) {
       range.format.horizontalAlignment = "Left";
       await context.sync();
     }
+    // 🧹 Nach dem Einfügen: fehlerhafte (fast leere) Zeilen entfernen
+    const cleanupCols = ["Kabelnummer", "Kabeltyp", "von Ort", "bis Ort"];
+    const cleanupIndexes = cleanupCols.map(col =>
+      excelHeaders.findIndex(h => normalizeLabel(h) === normalizeLabel(col))
+    ).filter(i => i !== -1);
+    
+    const invalidRows = [];
+    
+    for (const rowNum of insertedRowNumbers) {
+      const range = sheet.getRangeByIndexes(rowNum - 1, 0, 1, colCount);
+      range.load("values");
+    }
+    await context.sync();
+    
+    for (const rowNum of insertedRowNumbers) {
+      const range = sheet.getRangeByIndexes(rowNum - 1, 0, 1, colCount);
+      const values = range.values[0];
+    
+      const allRelevantEmpty = cleanupIndexes.every(i =>
+        !values[i] || values[i].toString().trim() === ""
+      );
+    
+      if (allRelevantEmpty) {
+        invalidRows.push(rowNum);
+      }
+    }
+    
+    // Jetzt löschen – von unten nach oben!
+    for (const row of invalidRows.sort((a, b) => b - a)) {
+      sheet.getRangeByIndexes(row - 1, 0, 1, colCount).delete(Excel.DeleteShiftDirection.up);
+    }
+    
+    await context.sync();
 
     // ✅ Jetzt Duplikate prüfen, vor Sortierung!
     await detectAndHandleDuplicates(context, sheet, excelHeaders, insertedRowNumbers, insertedKeys);
