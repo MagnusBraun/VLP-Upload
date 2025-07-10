@@ -620,10 +620,12 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNum
 
 async function applyDuplicateBoxHighlightingAfterSort(context, sheet) {
   const setting = context.workbook.settings.getItemOrNullObject("DuplikatKeys");
+  setting.load("value");
   await context.sync();
-  if (setting.isNullObject) return;
-
+  if (setting.isNullObject || !setting.value) return;
+  
   const raw = setting.value;
+
   if (!raw) return;
   setting.delete();
   await context.sync();
