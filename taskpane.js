@@ -514,9 +514,9 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNum
   usedRange.load(["values", "rowCount"]);
   await context.sync();
 
-  const allRows = usedRange.values.slice(1); // ohne Header
+  const allRows = usedRange.values.slice(1); // exclude header
   const newRowSet = new Set(insertedRowNumbers);
-  const existingRows = allRows.filter((_, idx) => !newRowSet.has(idx + 2)); // +2 = Excel-Index inkl. Header
+  const existingRows = allRows.filter((_, idx) => !newRowSet.has(idx + 2)); // +2 for Excel indexing
 
   const existingKeyMap = new Map();
   existingRows.forEach((row, idx) => {
@@ -529,6 +529,11 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNum
   const dupeNewRows = [];
   const dupeOldRows = new Set();
 
+  // Spaltenbereich bestimmen (von „Kabelnummer“ bis „VLP“)
+  const startCol = headers.findIndex(h => normalizeLabel(h) === "kabelnummer");
+  const endCol = headers.findIndex(h => normalizeLabel(h) === "vlp");
+  const colCount = endCol >= startCol ? endCol - startCol + 1 : 1;
+
   for (const rowNum of insertedRowNumbers) {
     const range = sheet.getRange(`A${rowNum}:Z${rowNum}`);
     range.load("values");
@@ -539,14 +544,16 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNum
     const dupOlds = existingKeyMap.get(key) || [];
 
     if (dupOlds.length > 0) {
+      // Bestehende Duplikate -> hellgelb
       for (const dup of dupOlds) {
         const dupRange = sheet.getRange(`A${dup}:Z${dup}`);
-        dupRange.format.fill.color = "#FFF2CC"; // hellgelb für alte Zeilen
+        dupRange.format.fill.color = "#FFF2CC";
         dupeOldRows.add(dup);
       }
 
+      // Neue Duplikate -> dunkelgelb
       const insertedRange = sheet.getRange(`A${rowNum}:Z${rowNum}`);
-      insertedRange.format.fill.color = "#FFD966"; // dunkelgelb für neue Zeilen
+      insertedRange.format.fill.color = "#FFD966";
       dupeNewRows.push(rowNum);
     }
   }
@@ -575,16 +582,24 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNum
           sheet.getRange(`A${row}:Z${row}`).delete(Excel.DeleteShiftDirection.up);
         }
         for (const row of dupeNewRows) {
-          sheet.getRange(`A${row}:Z${row}`).format.fill.clear(); // Markierung entfernen
+          sheet.getRange(`A${row}:Z${row}`).format.fill.clear();
         }
         await context.sync();
         resolve();
       },
       async () => {
-        // Option 3: Behalten & hellblau markieren
+        // Option 3: Duplikate behalten & markieren -> rot umrahmen
         for (const row of [...dupeOldRows, ...dupeNewRows]) {
-          const range = sheet.getRange(`A${row}:Z${row}`);
-          range.format.fill.color = "#DDEBF7"; // hellblau
+          const range = sheet.getRangeByIndexes(row - 1, startCol, 1, colCount);
+          range.format.fill.clear(); // Hintergrund löschen
+          range.format.borders.getItem('EdgeTop').style = 'Continuous';
+          range.format.borders.getItem('EdgeBottom').style = 'Continuous';
+          range.format.borders.getItem('EdgeLeft').style = 'Continuous';
+          range.format.borders.getItem('EdgeRight').style = 'Continuous';
+          range.format.borders.getItem('EdgeTop').color = "red";
+          range.format.borders.getItem('EdgeBottom').color = "red";
+          range.format.borders.getItem('EdgeLeft').color = "red";
+          range.format.borders.getItem('EdgeRight').color = "red";
         }
         await context.sync();
         resolve();
@@ -592,8 +607,6 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNum
     );
   });
 }
-
-
 
 function showError(msg) {
   const preview = document.getElementById("preview");
