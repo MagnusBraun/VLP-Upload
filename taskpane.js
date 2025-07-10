@@ -436,7 +436,7 @@ async function insertToExcel(mapped) {
       await context.sync();
     }
     await applyDuplicateBoxHighlightingAfterSort(context, sheet);
-
+    await applyKabelnummerGroupingBorders(context, sheet, excelHeaders);
     // 🧹 Leere Zeilen entfernen
     const fullRange = sheet.getUsedRange();
     fullRange.load(["values", "rowCount"]);
@@ -452,7 +452,6 @@ async function insertToExcel(mapped) {
     }
     await context.sync();
   });
-  await applyKabelnummerGroupingBorders(context, sheet, excelHeaders);
 }
 
 
