@@ -620,19 +620,20 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNum
 
 async function applyDuplicateBoxHighlightingAfterSort(context, sheet) {
   const setting = context.workbook.settings.getItemOrNullObject("DuplikatKeys");
-  setting.load("value");
+  setting.load("value"); // <-- wichtig!
   await context.sync();
-  if (setting.isNullObject || !setting.value) return;
-  
-  const raw = setting.value;
 
-  if (!raw) return;
-  setting.delete();
+  // Jetzt sicher prüfen und verwenden
+  if (setting.isNullObject || !setting.value) return;
+
+  const raw = setting.value;
+  setting.delete(); // optional
   await context.sync();
 
   const { keys, startCol, colCount, keyCols } = JSON.parse(raw);
 
-  if (startCol === -1 || colCount < 1) return;
+  if (!keys || !Array.isArray(keys) || keys.length === 0) return;
+  if (startCol < 0 || colCount <= 0) return;
 
   const usedRange = sheet.getUsedRange();
   usedRange.load(["values", "rowCount", "columnCount"]);
@@ -657,7 +658,7 @@ async function applyDuplicateBoxHighlightingAfterSort(context, sheet) {
     const key = keyIndexes.map(j => (row[j] || "").toString().trim().toLowerCase()).join("|");
     if (keys.includes(key)) {
       if (!matchedKeys.has(key)) matchedKeys.set(key, []);
-      matchedKeys.get(key).push(i + 1); // +1 wegen Header
+      matchedKeys.get(key).push(i + 1); // Excel-Zeile (1-basiert, +1 für Header)
     }
   }
 
