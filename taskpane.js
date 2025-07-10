@@ -649,6 +649,7 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNum
           keyCols: keyCols.map(k => normalizeLabel(k))
         }));
         await context.sync();
+        await applyKabelnummerGroupingBorders(context, sheet, headers);
         resolve();
       }
     );
@@ -709,30 +710,38 @@ async function applyDuplicateBoxHighlightingAfterSort(context, sheet) {
 
 
   await context.sync();
+  await applyKabelnummerGroupingBorders(context, sheet, headers);
 }
 async function applyKabelnummerGroupingBorders(context, sheet, headers) {
+  // Hole aktuelle Daten
   const usedRange = sheet.getUsedRange();
   usedRange.load("values");
   await context.sync();
 
   const rows = usedRange.values;
   const kabelIndex = headers.findIndex(h => normalizeLabel(h) === "kabelnummer");
-  const startCol = headers.findIndex(h => normalizeLabel(h) === "kabelnummer");
-  const endCol = headers.findIndex(h => normalizeLabel(h) === "vlp");
-  const colCount = endCol >= startCol ? endCol - startCol + 1 : 1;
+  const startCol = 0; // wir rahmen die ganze Zeile
+  const colCount = headers.length;
 
-  if (kabelIndex === -1 || startCol === -1 || endCol === -1) return;
+  if (kabelIndex === -1) return;
+
+  // Optional: vorher alle Rahmen löschen
+  const allRange = sheet.getRangeByIndexes(1, startCol, rows.length - 1, colCount); // ohne Header
+  ["EdgeTop", "EdgeBottom", "EdgeLeft", "EdgeRight"].forEach(edge => {
+    const border = allRange.format.borders.getItem(edge);
+    border.style = "None";
+  });
+  await context.sync();
 
   let currentGroup = [];
   let currentKabel = null;
 
-  for (let i = 1; i < rows.length; i++) { // i=1: erste Datenzeile (Excel-Zeile 2)
+  for (let i = 1; i < rows.length; i++) { // i=1: erste Datenzeile
     const row = rows[i];
     const kabelVal = row[kabelIndex]?.toString().trim() ?? "";
 
     if (kabelVal !== currentKabel) {
       if (currentGroup.length > 0) {
-        // Excel-Zeilen: +1 für Header
         const firstExcelRow = currentGroup[0] + 1;
         const lastExcelRow = currentGroup[currentGroup.length - 1] + 1;
         await drawThinBorder(sheet, firstExcelRow, lastExcelRow, startCol, colCount);
@@ -744,7 +753,7 @@ async function applyKabelnummerGroupingBorders(context, sheet, headers) {
     }
   }
 
-  // Letzte Gruppe nicht vergessen
+  // Letzte Gruppe
   if (currentGroup.length > 0) {
     const firstExcelRow = currentGroup[0] + 1;
     const lastExcelRow = currentGroup[currentGroup.length - 1] + 1;
@@ -753,6 +762,7 @@ async function applyKabelnummerGroupingBorders(context, sheet, headers) {
 
   await context.sync();
 }
+
 
 
 async function drawThinBorder(sheet, startRow, endRow, startCol, colCount) {
