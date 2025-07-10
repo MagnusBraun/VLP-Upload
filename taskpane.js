@@ -452,6 +452,7 @@ async function insertToExcel(mapped) {
     }
     await context.sync();
   });
+  await applyKabelnummerGroupingBorders(context, sheet, excelHeaders);
 }
 
 
@@ -709,6 +710,56 @@ async function applyDuplicateBoxHighlightingAfterSort(context, sheet) {
 
 
   await context.sync();
+}
+async function applyKabelnummerGroupingBorders(context, sheet, headers) {
+  const usedRange = sheet.getUsedRange();
+  usedRange.load("values");
+  await context.sync();
+
+  const rows = usedRange.values;
+  const kabelIndex = headers.findIndex(h => normalizeLabel(h) === "kabelnummer");
+  const startCol = headers.findIndex(h => normalizeLabel(h) === "kabelnummer");
+  const endCol = headers.findIndex(h => normalizeLabel(h) === "vlp");
+  const colCount = endCol >= startCol ? endCol - startCol + 1 : 1;
+
+  if (kabelIndex === -1 || startCol === -1 || endCol === -1) return;
+
+  let currentGroup = [];
+  let currentKabel = null;
+
+  for (let i = 1; i < rows.length; i++) { // ab Zeile 2 (Index 1), da Zeile 1 Header ist
+    const row = rows[i];
+    const kabelVal = row[kabelIndex]?.toString().trim() ?? "";
+
+    if (kabelVal !== currentKabel) {
+      if (currentGroup.length > 0) {
+        await drawThinBorder(sheet, currentGroup[0] + 1, currentGroup[currentGroup.length - 1] + 1, startCol, colCount);
+      }
+      currentGroup = [i];
+      currentKabel = kabelVal;
+    } else {
+      currentGroup.push(i);
+    }
+  }
+
+  // letzte Gruppe noch verarbeiten
+  if (currentGroup.length > 0) {
+    await drawThinBorder(sheet, currentGroup[0] + 1, currentGroup[currentGroup.length - 1] + 1, startCol, colCount);
+  }
+
+  await context.sync();
+}
+
+async function drawThinBorder(sheet, startRow, endRow, startCol, colCount) {
+  const range = sheet.getRangeByIndexes(startRow, startCol, endRow - startRow + 1, colCount);
+  const borders = range.format.borders;
+
+  ["EdgeTop", "EdgeBottom", "EdgeLeft", "EdgeRight"].forEach(edge => {
+    const border = borders.getItem(edge);
+    border.style = "Continuous";
+    border.weight = "Thin";
+    border.color = "black";
+  });
 }
 
 function showError(msg) {
