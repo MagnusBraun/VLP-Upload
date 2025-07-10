@@ -726,13 +726,16 @@ async function applyKabelnummerGroupingBorders(context, sheet, headers) {
   let currentGroup = [];
   let currentKabel = null;
 
-  for (let i = 1; i < rows.length; i++) { // Zeile 1 = Index 0 = Header
+  for (let i = 1; i < rows.length; i++) { // i=1: erste Datenzeile (Excel-Zeile 2)
     const row = rows[i];
     const kabelVal = row[kabelIndex]?.toString().trim() ?? "";
 
     if (kabelVal !== currentKabel) {
       if (currentGroup.length > 0) {
-        await drawThinBorder(sheet, currentGroup[0] + 1, currentGroup[currentGroup.length - 1] + 1, startCol, colCount);
+        // Excel-Zeilen: +1 für Header
+        const firstExcelRow = currentGroup[0] + 1;
+        const lastExcelRow = currentGroup[currentGroup.length - 1] + 1;
+        await drawThinBorder(sheet, firstExcelRow, lastExcelRow, startCol, colCount);
       }
       currentGroup = [i];
       currentKabel = kabelVal;
@@ -741,15 +744,19 @@ async function applyKabelnummerGroupingBorders(context, sheet, headers) {
     }
   }
 
+  // Letzte Gruppe nicht vergessen
   if (currentGroup.length > 0) {
-    await drawThinBorder(sheet, currentGroup[0] + 1, currentGroup[currentGroup.length - 1] + 1, startCol, colCount);
+    const firstExcelRow = currentGroup[0] + 1;
+    const lastExcelRow = currentGroup[currentGroup.length - 1] + 1;
+    await drawThinBorder(sheet, firstExcelRow, lastExcelRow, startCol, colCount);
   }
 
   await context.sync();
 }
 
+
 async function drawThinBorder(sheet, startRow, endRow, startCol, colCount) {
-  const range = sheet.getRangeByIndexes(startRow, startCol, endRow - startRow + 1, colCount);
+  const range = sheet.getRangeByIndexes(startRow - 1, startCol, endRow - startRow + 1, colCount);
   const borders = range.format.borders;
 
   ["EdgeTop", "EdgeBottom", "EdgeLeft", "EdgeRight"].forEach(edge => {
