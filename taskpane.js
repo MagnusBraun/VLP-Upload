@@ -425,9 +425,14 @@ async function insertToExcel(mapped) {
     updatedRange.load("rowCount");
     await context.sync();
     const kabelIndex = excelHeaders.findIndex(h => normalizeLabel(h) === normalizeLabel("Kabelnummer"));
-    if (kabelIndex !== -1) {
+    const vonKmIndex = excelHeaders.findIndex(h => normalizeLabel(h) === normalizeLabel("von km"));
+    
+    if (kabelIndex !== -1 && vonKmIndex !== -1) {
       const sortRange = sheet.getRangeByIndexes(1, 0, updatedRange.rowCount - 1, colCount);
-      sortRange.sort.apply([{ key: kabelIndex, ascending: true }]);
+      sortRange.sort.apply([
+        { key: kabelIndex, ascending: true },
+        { key: vonKmIndex, ascending: true }
+      ]);
       await context.sync();
     }
     await applyDuplicateBoxHighlightingAfterSort(context, sheet);
