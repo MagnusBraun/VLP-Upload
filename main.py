@@ -28,7 +28,7 @@ HEADER_MAP = {
     "von km": ["von km", "start km", "anfang km", "von Ort Bahn km", "von ort bahn km"],
     "Metr.(von)": ["metr", "meter", "metr.", "Metr.", "Metrier.", "metrier.", "Metrierung", "metrierung", "Start Meter A"],
     "bis Ort": ["bis ort", "ziel ort", "end ort"],
-    "bis km": ["bis km", "ziel km", "end km", "nach Ort Bahn km", "nach ort bahn km"],
+    "bis km": ["bis km", "ziel km", "end km", "nach Ort Bahn km", "nach ort Bahn km"],
     "Metr.(bis)": ["metr", "meter", "metr.","Metr.", "Metrier.", "metrier.", "Metrierung", "metrierung", "Ende Meter E"],
     "SOLL": ["soll", "sollwert", "soll m"],
     "IST": ["ist", "istwert", "ist m", "Verlegte-Länge","Verlegte- Länge"],
@@ -80,6 +80,7 @@ def extract_data_from_pdf(pdf_path):
             beste_tabelle = None
             beste_header_zeile = None
 
+            # Standardweg: suche die Tabelle mit den meisten erkannten Headern
             for seite in pdf.pages:
                 try:
                     tables = seite.extract_tables()
@@ -106,7 +107,7 @@ def extract_data_from_pdf(pdf_path):
                 except Exception:
                     pass
 
-            # Fallback: spaltenorientiert Header suchen
+            # Fallback: spaltenorientiert Header suchen und mehrere Tabellen anhängen
             if not alle_daten:
                 for seite in pdf.pages:
                     try:
@@ -153,24 +154,25 @@ def extract_data_from_pdf(pdf_path):
                                         break
 
                             if header_idx is not None:
-                                neue_header.append(header_name)
                                 inhalt_nach_header.append(list(spalte[header_idx+1:]))
+                                neue_header.append(header_name)
                             else:
-                                neue_header.append(spalte[0] or f"unknown_{len(neue_header)}")
                                 inhalt_nach_header.append(list(spalte[1:]))
+                                neue_header.append(spalte[0] or f"unknown_{len(neue_header)}")
 
                         daten_zeilen = list(zip(*inhalt_nach_header))
 
                         try:
                             df = pd.DataFrame(daten_zeilen, columns=make_unique(neue_header))
                             df = df.dropna(how='all')  # komplett leere Zeilen entfernen
-                            df = df[df.notna().sum(axis=1) >= 6]  # nur Zeilen mit ≥ 3 Werten behalten
+                            df = df[df.notna().sum(axis=1) >= 6]  # nur Zeilen mit ≥ 6 Werten behalten
                             if not df.empty:
                                 alle_daten.append(df)
                         except Exception:
                             continue
 
     return pd.concat(alle_daten, ignore_index=True) if alle_daten else pd.DataFrame()
+
 
 def map_columns_to_headers(df):
     mapped = {}
