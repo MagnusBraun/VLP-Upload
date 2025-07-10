@@ -440,7 +440,7 @@ async function removeEmptyRows(context, sheet) {
   await context.sync();
 }
 
-function showConfirmDialog(message, onConfirm, onCancel) {
+function showDuplicateChoiceDialog(message, onSkipNew, onReplaceOld, onKeepAllMarked) {
   const overlay = document.createElement("div");
   overlay.style.position = "fixed";
   overlay.style.top = "0";
@@ -457,7 +457,7 @@ function showConfirmDialog(message, onConfirm, onCancel) {
   dialog.style.background = "white";
   dialog.style.padding = "1.5em";
   dialog.style.borderRadius = "8px";
-  dialog.style.maxWidth = "400px";
+  dialog.style.maxWidth = "450px";
   dialog.style.textAlign = "center";
   dialog.style.boxShadow = "0 0 10px rgba(0,0,0,0.3)";
 
@@ -469,27 +469,38 @@ function showConfirmDialog(message, onConfirm, onCancel) {
   const buttons = document.createElement("div");
   buttons.style.marginTop = "1em";
 
-  const confirmBtn = document.createElement("button");
-  confirmBtn.textContent = "Duplikate löschen";
-  confirmBtn.style.marginRight = "1em";
-  confirmBtn.onclick = () => {
+  const btn1 = document.createElement("button");
+  btn1.textContent = "1: Duplikate nicht hinzufügen";
+  btn1.style.margin = "0.5em";
+  btn1.onclick = () => {
     overlay.remove();
-    onConfirm();
+    onSkipNew();
   };
 
-  const cancelBtn = document.createElement("button");
-  cancelBtn.textContent = "Beibehalten";
-  cancelBtn.onclick = () => {
+  const btn2 = document.createElement("button");
+  btn2.textContent = "2: Alte Zeilen ersetzen";
+  btn2.style.margin = "0.5em";
+  btn2.onclick = () => {
     overlay.remove();
-    onCancel();
+    onReplaceOld();
   };
 
-  buttons.appendChild(confirmBtn);
-  buttons.appendChild(cancelBtn);
+  const btn3 = document.createElement("button");
+  btn3.textContent = "3: Duplikate behalten & markieren";
+  btn3.style.margin = "0.5em";
+  btn3.onclick = () => {
+    overlay.remove();
+    onKeepAllMarked();
+  };
+
+  buttons.appendChild(btn1);
+  buttons.appendChild(btn2);
+  buttons.appendChild(btn3);
   dialog.appendChild(buttons);
   overlay.appendChild(dialog);
   document.body.appendChild(overlay);
 }
+
 
 async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNumbers = []) {
   const keyCols = ["Kabelnummer", "von Ort", "von km", "bis Ort", "bis km"];
@@ -499,91 +510,87 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNum
 
   if (keyIndexes.length < 2) return;
 
-  // Erfasse nur die Excel-Zeilen VOR dem Einfügen
-  const existingRange = sheet.getUsedRange();
-  existingRange.load(["values", "rowCount"]);
+  const usedRange = sheet.getUsedRange();
+  usedRange.load(["values", "rowCount"]);
   await context.sync();
 
-  const existingRows = existingRange.values.slice(1, existingRange.rowCount - insertedRowNumbers.length);
+  const allRows = usedRange.values.slice(1); // ohne Header
+  const newRowSet = new Set(insertedRowNumbers);
+  const existingRows = allRows.filter((_, idx) => !newRowSet.has(idx + 2)); // +2 = Excel-Index
 
   const existingKeyMap = new Map();
   existingRows.forEach((row, idx) => {
     const key = keyIndexes.map(i => (row[i] || "").toString().trim().toLowerCase()).join("|");
+    const excelRowNum = idx + 2; // 1-basierter Index inkl. Header
     if (!existingKeyMap.has(key)) existingKeyMap.set(key, []);
-    existingKeyMap.get(key).push(idx + 2); // Excel rows start at 1, +1 for header
+    existingKeyMap.get(key).push(excelRowNum);
   });
 
-  const dupRowNums = [];
-  const markedRanges = [];
+  const dupeNewRows = [];
+  const dupeOldRows = new Set();
 
-  const insertedRanges = [];
   for (const rowNum of insertedRowNumbers) {
     const range = sheet.getRange(`A${rowNum}:Z${rowNum}`);
     range.load("values");
-    insertedRanges.push({ rowNum, range });
-  }
-  await context.sync();
+    await context.sync();
 
-  const staticMarkedDupRows = new Set();
-
-  for (const { rowNum, range } of insertedRanges) {
     const row = range.values[0];
     const key = keyIndexes.map(i => (row[i] || "").toString().trim().toLowerCase()).join("|");
-    const dupRows = existingKeyMap.get(key) || [];
+    const dupOlds = existingKeyMap.get(key) || [];
 
-    if (dupRows.length > 0) {
-      dupRowNums.push(rowNum);
-      markedRanges.push({ rowNum, range });
-      range.format.fill.color = "#FFFF99";
-
-      for (const dup of dupRows) {
+    if (dupOlds.length > 0) {
+      // Markiere alte Zeilen: hellgelb
+      for (const dup of dupOlds) {
         const dupRange = sheet.getRange(`A${dup}:Z${dup}`);
-        staticMarkedDupRows.add(dup);
-        dupRange.format.fill.color = "#FFFF99";
+        dupRange.format.fill.color = "#FFF2CC";
+        dupeOldRows.add(dup);
       }
+
+      // Markiere neue Zeile: dunkelgelb
+      const insertedRange = sheet.getRange(`A${rowNum}:Z${rowNum}`);
+      insertedRange.format.fill.color = "#FFD966";
+      dupeNewRows.push(rowNum);
     }
   }
 
-  if (dupRowNums.length === 0) return;
+  if (dupeNewRows.length === 0) return;
 
   await context.sync();
 
-  await new Promise(resolve => {
-    showConfirmDialog(
-      `${dupRowNums.length} Duplikate erkannt. Beibehalten oder löschen?`,
+  return new Promise(resolve => {
+    showDuplicateChoiceDialog(
+      `${dupeNewRows.length} Duplikate erkannt. Wie möchtest du fortfahren?`,
       async () => {
-        const sorted = dupRowNums.sort((a, b) => b - a);
-        for (const row of sorted) {
+        // Option 1: Neue löschen, alle Markierungen entfernen
+        for (const row of dupeNewRows.sort((a, b) => b - a)) {
           sheet.getRange(`A${row}:Z${row}`).delete(Excel.DeleteShiftDirection.up);
         }
-        await context.sync();
-
-        // Nach Löschung: alle Zellen neu durchsuchen und Markierung entfernen
-        const cleanedRange = sheet.getUsedRange();
-        cleanedRange.load(["values", "rowCount"]);
-        await context.sync();
-
-        const visibleRows = cleanedRange.rowCount;
-        for (let r = 2; r <= visibleRows; r++) {
-          sheet.getRange(`A${r}:Z${r}`).format.fill.clear();
+        for (const row of dupeOldRows) {
+          sheet.getRange(`A${row}:Z${row}`).format.fill.clear();
         }
-
         await context.sync();
         resolve();
       },
       async () => {
-        for (const { range } of markedRanges) {
-          range.format.fill.clear();
+        // Option 2: Alte löschen, neue behalten (Markierungen neu löschen)
+        for (const row of [...dupeOldRows].sort((a, b) => b - a)) {
+          sheet.getRange(`A${row}:Z${row}`).delete(Excel.DeleteShiftDirection.up);
         }
-        for (const dup of staticMarkedDupRows) {
-          sheet.getRange(`A${dup}:Z${dup}`).format.fill.clear();
+        for (const row of dupeNewRows) {
+          sheet.getRange(`A${row}:Z${row}`).format.fill.clear();
         }
+        await context.sync();
+        resolve();
+      },
+      async () => {
+        // Option 3: Alles behalten & markiert lassen
         await context.sync();
         resolve();
       }
     );
   });
 }
+
 
 function showError(msg) {
   const preview = document.getElementById("preview");
