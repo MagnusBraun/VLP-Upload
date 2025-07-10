@@ -397,6 +397,8 @@ async function insertToExcel(mapped) {
       sortRange.sort.apply([{ key: kabelIndex, ascending: true }]);
       await context.sync();
     }
+    await applyDuplicateBoxHighlightingAfterSort(context, sheet);
+
     // 🧹 Leere Zeilen entfernen
     const fullRange = sheet.getUsedRange();
     fullRange.load(["values", "rowCount"]);
@@ -411,7 +413,6 @@ async function insertToExcel(mapped) {
       sheet.getRange(`A${row}:Z${row}`).delete(Excel.DeleteShiftDirection.up);
     }
     await context.sync();
-    await applyDuplicateBoxHighlightingAfterSort(context, sheet);
   });
 }
 
@@ -623,46 +624,51 @@ async function applyDuplicateBoxHighlightingAfterSort(context, sheet) {
   if (setting.isNullObject) return;
 
   const raw = setting.value;
+  if (!raw) return;
   setting.delete();
   await context.sync();
 
   const { keys, startCol, colCount, keyCols } = JSON.parse(raw);
 
+  if (startCol === -1 || colCount < 1) return;
+
   const usedRange = sheet.getUsedRange();
-  usedRange.load(["values", "rowCount"]);
+  usedRange.load(["values", "rowCount", "columnCount"]);
   await context.sync();
 
-  const headers = sheet.getRange("A1:Z1");
-  headers.load("values");
+  const headerRange = sheet.getRange("A1:Z1");
+  headerRange.load("values");
   await context.sync();
 
-  const headerRow = headers.values[0];
+  const headerRow = headerRange.values[0];
   const keyIndexes = keyCols.map(k =>
     headerRow.findIndex(h => normalizeLabel(h) === k)
   ).filter(i => i !== -1);
 
+  if (keyIndexes.length < 2) return;
+
   const values = usedRange.values.slice(1); // ohne Header
-  const matchedPairs = new Map();
+  const matchedKeys = new Map();
 
   for (let i = 0; i < values.length; i++) {
     const row = values[i];
     const key = keyIndexes.map(j => (row[j] || "").toString().trim().toLowerCase()).join("|");
     if (keys.includes(key)) {
-      if (!matchedPairs.has(key)) {
-        matchedPairs.set(key, []);
-      }
-      matchedPairs.get(key).push(i + 1); // +1 wegen Header
+      if (!matchedKeys.has(key)) matchedKeys.set(key, []);
+      matchedKeys.get(key).push(i + 1); // +1 wegen Header
     }
   }
 
-  for (const rows of matchedPairs.values()) {
+  for (const rows of matchedKeys.values()) {
     if (rows.length < 2) continue;
+
     const minRow = Math.min(...rows);
     const maxRow = Math.max(...rows);
-  
-    const range = sheet.getRangeByIndexes(minRow - 1, startCol, maxRow - minRow + 1, colCount);
+    const height = maxRow - minRow + 1;
+
+    const range = sheet.getRangeByIndexes(minRow - 1, startCol, height, colCount);
     const borders = range.format.borders;
-  
+
     ["EdgeTop", "EdgeBottom", "EdgeLeft", "EdgeRight"].forEach(edge => {
       const border = borders.getItem(edge);
       border.style = "Continuous";
