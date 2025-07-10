@@ -662,22 +662,13 @@ async function applyDuplicateBoxHighlightingAfterSort(context, sheet) {
     }
   }
 
-  for (const rows of matchedKeys.values()) {
-    if (rows.length < 2) continue;
-
-    const minRow = Math.min(...rows);
-    const maxRow = Math.max(...rows);
-    const height = maxRow - minRow + 1;
-
-    const range = sheet.getRangeByIndexes(minRow - 1, startCol, height, colCount);
-    const borders = range.format.borders;
-
-    ["EdgeTop", "EdgeBottom", "EdgeLeft", "EdgeRight"].forEach(edge => {
-      const border = borders.getItem(edge);
-      border.style = "Continuous";
-      border.color = "red";
-    });
+ for (const rows of matchedKeys.values()) {
+  for (const row of rows) {
+    const cellRange = sheet.getRangeByIndexes(row, startCol, 1, colCount);
+    cellRange.format.font.color = "#B8860B"; // Dunkelgelb
   }
+}
+
 
   await context.sync();
 }
