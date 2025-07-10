@@ -411,7 +411,7 @@ async function insertToExcel(mapped) {
     for (const row of emptyRows) {
       sheet.getRange(`A${row}:Z${row}`).delete(Excel.DeleteShiftDirection.up);
     }
-
+    await applyDuplicateHighlightingAfterSort(context, sheet, excelHeaders);
     await context.sync();
   });
 }
@@ -514,9 +514,9 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNum
   usedRange.load(["values", "rowCount"]);
   await context.sync();
 
-  const allRows = usedRange.values.slice(1); // exclude header
+  const allRows = usedRange.values.slice(1); // ohne Header
   const newRowSet = new Set(insertedRowNumbers);
-  const existingRows = allRows.filter((_, idx) => !newRowSet.has(idx + 2)); // +2 for Excel indexing
+  const existingRows = allRows.filter((_, idx) => !newRowSet.has(idx + 2)); // Excel: +2 wegen Header
 
   const existingKeyMap = new Map();
   existingRows.forEach((row, idx) => {
@@ -528,14 +528,15 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNum
 
   const dupeNewRows = [];
   const dupeOldRows = new Set();
+  const duplicateKeys = new Set();
 
-  // Spaltenbereich bestimmen (von „Kabelnummer“ bis „VLP“)
+  // Bereichsgrenzen berechnen
   const startCol = headers.findIndex(h => normalizeLabel(h) === "kabelnummer");
   const endCol = headers.findIndex(h => normalizeLabel(h) === "vlp");
   const colCount = endCol >= startCol ? endCol - startCol + 1 : 1;
 
   for (const rowNum of insertedRowNumbers) {
-    const range = sheet.getRange(`A${rowNum}:Z${rowNum}`);
+    const range = sheet.getRangeByIndexes(rowNum - 1, 0, 1, headers.length);
     range.load("values");
     await context.sync();
 
@@ -544,16 +545,16 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNum
     const dupOlds = existingKeyMap.get(key) || [];
 
     if (dupOlds.length > 0) {
-      // Bestehende Duplikate -> hellgelb
+      duplicateKeys.add(key);
+
       for (const dup of dupOlds) {
-        const dupRange = sheet.getRange(`A${dup}:Z${dup}`);
-        dupRange.format.fill.color = "#FFF2CC";
+        const dupRange = sheet.getRangeByIndexes(dup - 1, startCol, 1, colCount);
+        dupRange.format.fill.color = "#FFF2CC"; // hellgelb
         dupeOldRows.add(dup);
       }
 
-      // Neue Duplikate -> dunkelgelb
-      const insertedRange = sheet.getRange(`A${rowNum}:Z${rowNum}`);
-      insertedRange.format.fill.color = "#FFD966";
+      const insertedRange = sheet.getRangeByIndexes(rowNum - 1, startCol, 1, colCount);
+      insertedRange.format.fill.color = "#FFD966"; // dunkelgelb
       dupeNewRows.push(rowNum);
     }
   }
@@ -571,7 +572,8 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNum
           sheet.getRange(`A${row}:Z${row}`).delete(Excel.DeleteShiftDirection.up);
         }
         for (const row of dupeOldRows) {
-          sheet.getRange(`A${row}:Z${row}`).format.fill.clear();
+          const range = sheet.getRangeByIndexes(row - 1, startCol, 1, colCount);
+          range.format.fill.clear();
         }
         await context.sync();
         resolve();
@@ -582,30 +584,64 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNum
           sheet.getRange(`A${row}:Z${row}`).delete(Excel.DeleteShiftDirection.up);
         }
         for (const row of dupeNewRows) {
-          sheet.getRange(`A${row}:Z${row}`).format.fill.clear();
+          const range = sheet.getRangeByIndexes(row - 1, startCol, 1, colCount);
+          range.format.fill.clear();
         }
         await context.sync();
         resolve();
       },
       async () => {
-        // Option 3: Duplikate behalten & markieren -> rot umrahmen
+        // Option 3: Behalten & markieren später nach Sortierung
         for (const row of [...dupeOldRows, ...dupeNewRows]) {
           const range = sheet.getRangeByIndexes(row - 1, startCol, 1, colCount);
-          range.format.fill.clear(); // Hintergrund löschen
-          range.format.borders.getItem('EdgeTop').style = 'Continuous';
-          range.format.borders.getItem('EdgeBottom').style = 'Continuous';
-          range.format.borders.getItem('EdgeLeft').style = 'Continuous';
-          range.format.borders.getItem('EdgeRight').style = 'Continuous';
-          range.format.borders.getItem('EdgeTop').color = "red";
-          range.format.borders.getItem('EdgeBottom').color = "red";
-          range.format.borders.getItem('EdgeLeft').color = "red";
-          range.format.borders.getItem('EdgeRight').color = "red";
+          range.format.fill.clear();
         }
+        // Speichere die Duplikatschlüssel zur späteren Umrahmung
+        sheet.names.add("DuplikatKeys", JSON.stringify([...duplicateKeys]));
         await context.sync();
         resolve();
       }
     );
   });
+}
+async function applyDuplicateHighlightingAfterSort(context, sheet, headers) {
+  const nameItem = sheet.names.getItemOrNullObject("DuplikatKeys");
+  await context.sync();
+
+  if (nameItem.isNullObject) return;
+  const keyString = nameItem.getValue();
+  if (!keyString) return;
+
+  const duplicateKeys = new Set(JSON.parse(keyString));
+  nameItem.delete(); // einmalige Verwendung
+
+  const usedRange = sheet.getUsedRange();
+  usedRange.load(["values", "rowCount"]);
+  await context.sync();
+
+  const values = usedRange.values.slice(1); // ohne Header
+  const keyIndexes = ["Kabelnummer", "von Ort", "von km", "bis Ort", "bis km"]
+    .map(k => headers.findIndex(h => normalizeLabel(h) === normalizeLabel(k)))
+    .filter(i => i !== -1);
+
+  const startCol = headers.findIndex(h => normalizeLabel(h) === "kabelnummer");
+  const endCol = headers.findIndex(h => normalizeLabel(h) === "vlp");
+  const colCount = endCol >= startCol ? endCol - startCol + 1 : 1;
+
+  for (let i = 0; i < values.length; i++) {
+    const row = values[i];
+    const key = keyIndexes.map(j => (row[j] || "").toString().trim().toLowerCase()).join("|");
+    if (duplicateKeys.has(key)) {
+      const range = sheet.getRangeByIndexes(i + 1, startCol, 1, colCount); // +1 wegen Header
+      ["EdgeTop", "EdgeBottom", "EdgeLeft", "EdgeRight"].forEach(edge => {
+        const border = range.format.borders.getItem(edge);
+        border.style = "Continuous";
+        border.color = "red";
+      });
+    }
+  }
+
+  await context.sync();
 }
 
 function showError(msg) {
