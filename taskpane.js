@@ -201,10 +201,11 @@ async function uploadPDF() {
       
       for (let i = 0; i < rowCount; i++) {
         let hasRealContent = false;
-      
+
         for (const key of keys) {
           const value = data[key]?.[i];
-          if (value !== null && value !== undefined && value.toString().trim() !== "") {
+          const str = value?.toString().trim();
+          if (str && str !== "0") {
             hasRealContent = true;
             break;
           }
