@@ -726,7 +726,7 @@ async function applyKabelnummerGroupingBorders(context, sheet, headers) {
   let currentGroup = [];
   let currentKabel = null;
 
-  for (let i = 1; i < rows.length; i++) { // ab Zeile 2 (Index 1), da Zeile 1 Header ist
+  for (let i = 1; i < rows.length; i++) { // Zeile 1 = Index 0 = Header
     const row = rows[i];
     const kabelVal = row[kabelIndex]?.toString().trim() ?? "";
 
@@ -741,7 +741,6 @@ async function applyKabelnummerGroupingBorders(context, sheet, headers) {
     }
   }
 
-  // letzte Gruppe noch verarbeiten
   if (currentGroup.length > 0) {
     await drawThinBorder(sheet, currentGroup[0] + 1, currentGroup[currentGroup.length - 1] + 1, startCol, colCount);
   }
