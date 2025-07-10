@@ -25,13 +25,13 @@ HEADER_MAP = {
     "Ømm": ["durchmesser", "ø", "Ø", "ømm", "mm", "Durchmesser in mm","durchmesser in mm", "Durch-messer in mm", "durch-messer in mm"],
     "Trommelnummer": ["Trommel", "trommelnummer", "Trommel-nummer"],
     "von Ort": ["von ort", "start ort"],
-    "von km": ["von km", "start km", "anfang km"],
-    "Metr.(von)": ["metr", "meter", "metr.", "Metr.", "Metrier.", "metrier.", "Metrierung", "metrierung"],
+    "von km": ["von km", "start km", "anfang km", "von Ort Bahn km", "von ort bahn km"],
+    "Metr.(von)": ["metr", "meter", "metr.", "Metr.", "Metrier.", "metrier.", "Metrierung", "metrierung", "Start Meter A"],
     "bis Ort": ["bis ort", "ziel ort", "end ort"],
-    "bis km": ["bis km", "ziel km", "end km"],
-    "Metr.(bis)": ["metr", "meter", "metr.","Metr.", "Metrier.", "metrier.", "Metrierung", "metrierung"],
+    "bis km": ["bis km", "ziel km", "end km", "nach Ort Bahn km", "nach ort bahn km"],
+    "Metr.(bis)": ["metr", "meter", "metr.","Metr.", "Metrier.", "metrier.", "Metrierung", "metrierung", "Ende Meter E"],
     "SOLL": ["soll", "sollwert", "soll m"],
-    "IST": ["ist", "istwert", "ist m"],
+    "IST": ["ist", "istwert", "ist m", "Verlegte-Länge","Verlegte- Länge"],
     "Verlegeart": ["verlegeart", "verlegungsart", "Verlegeart Hand/Masch.", "VerlegeartHand/Masch.","verlegeart Hand/Masch.",],
     "Bemerkung": ["Bemerkungen","bemerkung","bemerkungen", "notiz", "kommentar", "Kommentar", "Anmerkung", "anmerkung","Bemerkungen Besonderheiten","BemerkungenBesonderheiten","Besonderheiten","besonderheiten"]
 }
