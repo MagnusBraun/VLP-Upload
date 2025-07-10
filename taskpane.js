@@ -659,9 +659,12 @@ async function applyDuplicateBoxHighlightingAfterSort(context, sheet) {
     if (rows.length < 2) continue;
     const minRow = Math.min(...rows);
     const maxRow = Math.max(...rows);
-    const range = sheet.getRangeByIndexes(minRow, startCol, maxRow - minRow + 1, colCount);
+  
+    const range = sheet.getRangeByIndexes(minRow - 1, startCol, maxRow - minRow + 1, colCount);
+    const borders = range.format.borders;
+  
     ["EdgeTop", "EdgeBottom", "EdgeLeft", "EdgeRight"].forEach(edge => {
-      const border = range.format.borders.getItem(edge);
+      const border = borders.getItem(edge);
       border.style = "Continuous";
       border.color = "red";
     });
