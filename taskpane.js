@@ -527,7 +527,7 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNum
 
   const dupeNewRows = [];
   const dupeOldRows = new Set();
-  const duplicateKeyPairs = [];
+  const duplicateKeys = new Set();
 
   const startCol = headers.findIndex(h => normalizeLabel(h) === "kabelnummer");
   const endCol = headers.findIndex(h => normalizeLabel(h) === "vlp");
@@ -551,7 +551,7 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNum
         const dupRange = sheet.getRangeByIndexes(dup - 1, startCol, 1, colCount);
         dupRange.format.fill.color = "#FFF2CC"; // hellgelb
         dupeOldRows.add(dup);
-        duplicateKeyPairs.push([dup, rowNum]);
+        duplicateKeys.add(key);
       }
     }
   }
@@ -603,7 +603,12 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNum
         }
 
         // In Workbook-Einstellungen speichern (statt in NamedRange!)
-        context.workbook.settings.add("DuplikatPaare", JSON.stringify({ pairs: duplicateKeyPairs, startCol, colCount }));
+        context.workbook.settings.add("DuplikatKeys", JSON.stringify({
+          keys: [...duplicateKeys],
+          startCol,
+          colCount,
+          keyCols: keyCols.map(k => normalizeLabel(k))
+        }));
         await context.sync();
         resolve();
       }
@@ -613,30 +618,50 @@ async function detectAndHandleDuplicates(context, sheet, headers, insertedRowNum
 
 
 async function applyDuplicateBoxHighlightingAfterSort(context, sheet) {
-  const setting = context.workbook.settings.getItemOrNullObject("DuplikatPaare");
+  const setting = context.workbook.settings.getItemOrNullObject("DuplikatKeys");
   await context.sync();
-
   if (setting.isNullObject) return;
 
   const raw = setting.value;
-  if (!raw) return;
   setting.delete();
   await context.sync();
 
-  const { pairs, startCol, colCount } = JSON.parse(raw);
-  const pairMap = {};
+  const { keys, startCol, colCount, keyCols } = JSON.parse(raw);
 
-  for (const [r1, r2] of pairs) {
-    const min = Math.min(r1, r2);
-    const max = Math.max(r1, r2);
-    pairMap[`${min}-${max}`] = [min, max];
+  const usedRange = sheet.getUsedRange();
+  usedRange.load(["values", "rowCount"]);
+  await context.sync();
+
+  const headers = sheet.getRange("A1:Z1");
+  headers.load("values");
+  await context.sync();
+
+  const headerRow = headers.values[0];
+  const keyIndexes = keyCols.map(k =>
+    headerRow.findIndex(h => normalizeLabel(h) === k)
+  ).filter(i => i !== -1);
+
+  const values = usedRange.values.slice(1); // ohne Header
+  const matchedPairs = new Map();
+
+  for (let i = 0; i < values.length; i++) {
+    const row = values[i];
+    const key = keyIndexes.map(j => (row[j] || "").toString().trim().toLowerCase()).join("|");
+    if (keys.includes(key)) {
+      if (!matchedPairs.has(key)) {
+        matchedPairs.set(key, []);
+      }
+      matchedPairs.get(key).push(i + 1); // +1 wegen Header
+    }
   }
 
-  for (const [row1, row2] of Object.values(pairMap)) {
-    const range = sheet.getRangeByIndexes(row1 - 1, startCol, row2 - row1 + 1, colCount);
-    const borders = range.format.borders;
+  for (const rows of matchedPairs.values()) {
+    if (rows.length < 2) continue;
+    const minRow = Math.min(...rows);
+    const maxRow = Math.max(...rows);
+    const range = sheet.getRangeByIndexes(minRow, startCol, maxRow - minRow + 1, colCount);
     ["EdgeTop", "EdgeBottom", "EdgeLeft", "EdgeRight"].forEach(edge => {
-      const border = borders.getItem(edge);
+      const border = range.format.borders.getItem(edge);
       border.style = "Continuous";
       border.color = "red";
     });
@@ -644,8 +669,6 @@ async function applyDuplicateBoxHighlightingAfterSort(context, sheet) {
 
   await context.sync();
 }
-
-
 
 function showError(msg) {
   const preview = document.getElementById("preview");
