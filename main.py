@@ -12,6 +12,7 @@ import warnings
 
 app = FastAPI()
 
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://magnusbraun.github.io"],  # exakt deine GitHub Pages Domain
@@ -35,6 +36,65 @@ HEADER_MAP = {
     "Verlegeart": ["verlegeart", "verlegungsart", "Verlegeart Hand/Masch.", "VerlegeartHand/Masch.","verlegeart Hand/Masch.",],
     "Bemerkung": ["Bemerkungen","bemerkung","bemerkungen", "notiz", "kommentar", "Kommentar", "Anmerkung", "anmerkung","Bemerkungen Besonderheiten","BemerkungenBesonderheiten","Besonderheiten","besonderheiten"]
 }
+
+def extract_kuep_data(pdf_path):
+    kabel_liste = []
+
+    kabelnummer_rx = re.compile(r'^S[\w\d]+$', re.I)  # S1234 etc.
+    kabeltyp_rx = re.compile(r'\b[\d,\.]+x[\d,\.]+x[\d,\.]+\b', re.I)  # z.B. 20x1x1,4
+    laenge_rx = re.compile(r'\b\d+\s?m\b', re.I)  # z.B. 1200m
+
+    with pdfplumber.open(pdf_path) as pdf:
+        for page in pdf.pages:
+            texts = page.extract_words()
+            for t in texts:
+                text = t['text'].strip()
+                if kabelnummer_rx.match(text):
+                    kabelnummer = text
+                    kabeltyp = find_nearest_text(texts, t, kabeltyp_rx)
+                    laenge = find_nearest_text(texts, t, laenge_rx)
+                    kabel_liste.append({
+                        "Kabelname": kabelnummer,
+                        "Kabeltyp": kabeltyp,
+                        "SOLL": laenge
+                    })
+
+    return pd.DataFrame(kabel_liste)
+
+def find_nearest_text(texts, ref, pattern_rx, max_dist=50):
+    ref_x, ref_top = ref['x0'], ref['top']
+    nearest = None
+    min_dist = float('inf')
+
+    for t in texts:
+        if t == ref:
+            continue
+        text = t['text'].strip()
+        if not pattern_rx.search(text):
+            continue
+        dist = ((t['x0'] - ref_x)**2 + (t['top'] - ref_top)**2)**0.5
+        if dist < min_dist and dist <= max_dist:
+            nearest = t
+            min_dist = dist
+    return nearest['text'] if nearest else None
+
+@app.post("/process_kuep")
+def process_kuep_pdf(file: UploadFile = File(...)):
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Nur PDF-Dateien erlaubt")
+
+    file_id = str(uuid.uuid4())
+    temp_path = os.path.join("/tmp", f"{file_id}.pdf")
+    with open(temp_path, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+
+    df = extract_kuep_data(temp_path)
+    if df.empty:
+        raise HTTPException(status_code=422, detail="Keine Kabel im KÜP gefunden")
+
+    return JSONResponse(content=df.to_dict(orient="records"))
+
+
 
 def make_unique(columns):
     seen = {}
