@@ -36,7 +36,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const { file_id } = await uploadRes.json();
 
     const allResults = [];
-    const maxPages = 100;
+    // Nach dem Upload, PDF-Seitenanzahl vom Server abrufen
+    const metaRes = await fetch(`https://vlp-upload.onrender.com/kuep_metadata?file_id=${file_id}`);
+    const meta = await metaRes.json();
+    const maxPages = meta.page_count || 1;
     let totalKabel = 0;
     const skippedPages = [];
 
