@@ -7,80 +7,81 @@ const apiUrlKuep = "https://vlp-upload1.onrender.com/process_kuep";
 const storageKey = "pmfusion-column-mapping";
 
 document.addEventListener("DOMContentLoaded", () => {
-  // VLP Mehrfach-Upload
-  document.getElementById("fileInput").addEventListener("change", async (event) => {
-    const files = event.target.files;
-    if (!files || files.length === 0) return;
+  const vlpBtn = document.getElementById("uploadVlpBtn");
+  const vlpInput = document.getElementById("vlpFileInput");
+  const kuepBtn = document.getElementById("uploadKuepBtn");
+  const kuepInput = document.getElementById("kuepFileInput");
 
-    const previewDiv = document.getElementById("preview");
-    previewDiv.innerHTML = ""; // vorherige Ergebnisse löschen
+  if (vlpBtn && vlpInput) {
+    vlpBtn.addEventListener("click", () => vlpInput.click());
 
-    for (const file of files) {
+    vlpInput.addEventListener("change", async (event) => {
+      const files = event.target.files;
+      if (!files || files.length === 0) return;
+
+      const previewDiv = document.getElementById("preview");
+      previewDiv.innerHTML = "";
+
+      for (const file of files) {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        try {
+          const response = await fetch("https://vlp-upload1.onrender.com/process", {
+            method: "POST",
+            body: formData
+          });
+
+          if (!response.ok) {
+            const err = await response.text();
+            previewDiv.innerHTML += `<p style="color:red;">Fehler bei ${file.name}: ${err}</p>`;
+            continue;
+          }
+
+          const data = await response.json();
+          previewDiv.innerHTML += `<h4>${file.name}</h4><pre>${JSON.stringify(data, null, 2)}</pre>`;
+        } catch (error) {
+          console.error("Netzwerkfehler:", error);
+          previewDiv.innerHTML += `<p style="color:red;">Netzwerkfehler bei ${file.name}: ${error}</p>`;
+        }
+      }
+    });
+  } else {
+    console.error("VLP Elemente nicht gefunden!");
+  }
+
+  if (kuepBtn && kuepInput) {
+    kuepBtn.addEventListener("click", () => kuepInput.click());
+
+    kuepInput.addEventListener("change", async (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+
       const formData = new FormData();
       formData.append("file", file);
 
       try {
-        const response = await fetch("https://vlp-upload1.onrender.com/process", {
+        const response = await fetch("https://vlp-upload1.onrender.com/process_kuep", {
           method: "POST",
           body: formData
         });
 
         if (!response.ok) {
-          const err = await response.text();
-          previewDiv.innerHTML += `<p style="color:red;">Fehler bei ${file.name}: ${err}</p>`;
-          continue;
+          console.error("Fehler beim Verarbeiten des KÜP:", await response.text());
+          return;
         }
 
         const data = await response.json();
-
-        // Preview anzeigen (einfaches JSON für Start)
-        previewDiv.innerHTML += `
-          <h4>${file.name}</h4>
-          <pre>${JSON.stringify(data, null, 2)}</pre>
-        `;
-
-        // Falls du direkt in Excel einfügen willst:
-        // await insertToExcel(data);
-
+        console.log("KÜP Daten:", data);
+        // previewDiv.innerHTML += `<h4>KÜP Ergebnis</h4><pre>${JSON.stringify(data, null, 2)}</pre>`;
       } catch (error) {
         console.error("Netzwerkfehler:", error);
-        previewDiv.innerHTML += `<p style="color:red;">Netzwerkfehler bei ${file.name}: ${error}</p>`;
       }
-    }
-  });
-
-  // KÜP Upload (nur eine Datei)
-  document.getElementById("uploadKuepBtn").addEventListener("click", () => {
-    document.getElementById("kuepFileInput").click();
-  });
-
-  document.getElementById("kuepFileInput").addEventListener("change", async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const formData = new FormData();
-    formData.append("file", file);
-
-    try {
-      const response = await fetch("https://vlp-upload1.onrender.com/process_kuep", {
-        method: "POST",
-        body: formData
-      });
-
-      if (!response.ok) {
-        console.error("Fehler beim Verarbeiten des KÜP:", await response.text());
-        return;
-      }
-
-      const data = await response.json();
-      // Hier kannst du insertKuepToExcel(data) aufrufen
-      console.log("KÜP Daten:", data);
-    } catch (error) {
-      console.error("Netzwerkfehler:", error);
-    }
-  });
+    });
+  } else {
+    console.error("KÜP Elemente nicht gefunden!");
+  }
 });
-
 
 
 function normalizeLabel(label) {
