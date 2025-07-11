@@ -78,22 +78,6 @@ def find_nearest_text(texts, ref, pattern_rx, max_dist=50):
             min_dist = dist
     return nearest['text'] if nearest else None
 
-@app.post("/process_kuep")
-def process_kuep_pdf(file: UploadFile = File(...)):
-    if not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Nur PDF-Dateien erlaubt")
-
-    file_id = str(uuid.uuid4())
-    temp_path = os.path.join("/tmp", f"{file_id}.pdf")
-    with open(temp_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-
-    df = extract_kuep_data(temp_path)
-    if df.empty:
-        raise HTTPException(status_code=422, detail="Keine Kabel im KÜP gefunden")
-
-    return JSONResponse(content=df.to_dict(orient="records"))
-
 
 
 def make_unique(columns):
@@ -130,6 +114,22 @@ def match_header_prefer_exact(text):
         if difflib.get_close_matches(t, [key.lower()] + [s.lower() for s in syns], n=1, cutoff=0.7):
             return key
     return None
+    
+@app.post("/process_kuep")
+def process_kuep_pdf(file: UploadFile = File(...)):
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Nur PDF-Dateien erlaubt")
+
+    file_id = str(uuid.uuid4())
+    temp_path = os.path.join("/tmp", f"{file_id}.pdf")
+    with open(temp_path, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+
+    df = extract_kuep_data(temp_path)
+    if df.empty:
+        raise HTTPException(status_code=422, detail="Keine Kabel im KÜP gefunden")
+
+    return JSONResponse(content=df.to_dict(orient="records"))
 
 def extract_data_from_pdf(pdf_path):
     alle_daten = []
