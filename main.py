@@ -147,10 +147,10 @@ def upload_kuep_file(file: UploadFile = File(...)):
         shutil.copyfileobj(file.file, f)
     return {"file_id": file_id}
 
-def extract_kabel_from_pdfminer(pdf_path, page_number=0):
+def extract_kabel_clusters(pdf_path, page_number=0):
     kabelnummer_rx = re.compile(r'\bS\d{4,7}\b', re.I)
-    kabeltyp_rx = re.compile(r'\d+[x×]\d+(?:[.,]\d+)?(?:[x×]\d+)?', re.I)
-    laenge_rx = re.compile(r'\d+\s?m\b', re.I)
+    kabeltyp_rx = re.compile(r'\d+\s*[x×]\s*\d+(?:[.,]\d+)?(?:\s*[x×]\s*\d+)?', re.I)
+    laenge_rx = re.compile(r'\d{2,5}\s*m\b', re.I)
 
     kabelinfos = []
     page_found = False
@@ -159,47 +159,53 @@ def extract_kabel_from_pdfminer(pdf_path, page_number=0):
         if page_idx != page_number:
             continue
         page_found = True
-        textboxes = []
 
-        for element in page_layout:
-            if isinstance(element, LTTextLineHorizontal):
-                text = element.get_text().strip()
-                x0, y0, x1, y1 = element.bbox
-                textboxes.append({
-                    "text": text,
-                    "x0": x0,
-                    "y0": y0,
-                    "x1": x1,
-                    "y1": y1
-                })
+        textboxes = [
+            {
+                "text": el.get_text().strip(),
+                "x0": el.bbox[0],
+                "y0": el.bbox[1],
+                "x1": el.bbox[2],
+                "y1": el.bbox[3],
+                "cx": (el.bbox[0] + el.bbox[2]) / 2,
+                "cy": (el.bbox[1] + el.bbox[3]) / 2,
+            }
+            for el in page_layout if isinstance(el, LTTextLineHorizontal)
+        ]
 
-        for tb in textboxes:
-            if kabelnummer_rx.search(tb["text"]):
-                kabelnummer = tb["text"]
-                x0, y0 = tb["x0"], tb["y0"]
+        for t in textboxes:
+            if not kabelnummer_rx.match(t["text"]):
+                continue
 
-                kabeltyp = None
-                laenge = None
+            kabelnummer = t["text"]
+            x0, y0 = t["x0"], t["y0"]
 
-                for other in textboxes:
-                    if abs(other["x0"] - x0) < 20 and other["y0"] < y0 and kabeltyp_rx.search(other["text"]):
-                        kabeltyp = other["text"]
-                        break
+            kabeltyp = next(
+                (tb["text"] for tb in textboxes
+                 if abs(tb["x0"] - x0) < 50 and 0 < (tb["y0"] - y0) < 70 and kabeltyp_rx.search(tb["text"])),
+                None
+            )
 
-                for other in textboxes:
-                    if abs(other["y0"] - y0) < 20 and other["x0"] > x0 and laenge_rx.search(other["text"]):
-                        laenge = re.sub(r"\s*\(.*?\)", "", other["text"]).strip()
-                        break
+            laenge = next(
+                (tb["text"] for tb in textboxes
+                 if abs(tb["y0"] - y0) < 30 and (tb["x0"] - x0) > 100 and laenge_rx.search(tb["text"])),
+                None
+            )
 
-                kabelinfos.append({
-                    "Kabelname": kabelnummer,
-                    "Kabeltyp": kabeltyp,
-                    "SOLL": laenge
-                })
+            if laenge:
+                laenge = re.sub(r"\s*\(.*?\)", "", laenge).strip()
+
+            kabelinfos.append({
+                "Kabelname": kabelnummer,
+                "Kabeltyp": kabeltyp,
+                "SOLL": laenge
+            })
 
     if not page_found:
         raise ValueError("Seite nicht gefunden im PDF")
+
     return kabelinfos
+
     
 @app.get("/process_kuep_page")
 def process_kuep_page(file_id: str, page: int):
@@ -209,7 +215,7 @@ def process_kuep_page(file_id: str, page: int):
         raise HTTPException(status_code=404, detail="Datei nicht gefunden")
 
     try:
-        kabelinfos = extract_kabel_from_pdfminer(temp_path, page_number=page)
+        kabelinfos = extract_kabel_clusters(temp_path, page_number=page)
         return JSONResponse(content=kabelinfos)
     except Exception as e:
         print(f"[Fehler] Seite {page}: {e}")
