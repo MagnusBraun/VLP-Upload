@@ -8,6 +8,60 @@ Office.onReady(() => {
 const apiUrl = "https://vlp-upload.onrender.com/process";
 const storageKey = "pmfusion-column-mapping";
 
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("uploadKuepBtn").addEventListener("click", () => {
+    document.getElementById("kuepFileInput").click();
+  });
+
+  document.getElementById("kuepFileInput").addEventListener("change", async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const response = await fetch("https://dein-backend.onrender.com/process_kuep", {
+        method: "POST",
+        body: formData
+      });
+
+      if (!response.ok) {
+        console.error("Fehler beim Verarbeiten des KÜP:", await response.text());
+        return;
+      }
+
+      const data = await response.json();
+      await insertKuepToExcel(data);
+    } catch (error) {
+      console.error("Netzwerkfehler:", error);
+    }
+  });
+});
+
+async function insertKuepToExcel(data) {
+  await Excel.run(async (context) => {
+    const sheet = context.workbook.worksheets.getActiveWorksheet();
+
+    // Spalten: wie du willst; SOLL=Kabellänge
+    const headers = ["Kabelname", "Kabeltyp", "SOLL"];
+    const rows = data.map(item => [
+      item.Kabelname || "",
+      item.Kabeltyp || "",
+      item.SOLL || ""
+    ]);
+
+    const allValues = [headers, ...rows];
+
+    // Schreibe ab Zelle A1 oder wähle andere Startzelle
+    const startCell = sheet.getRange("A1");
+    const range = startCell.getResizedRange(allValues.length - 1, headers.length - 1);
+    range.values = allValues;
+
+    await context.sync();
+  });
+}
+
 function normalizeLabel(label) {
   return label.toLowerCase().replace(/[^a-z0-9]/gi, "");
 }
