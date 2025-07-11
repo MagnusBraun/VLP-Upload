@@ -1,6 +1,6 @@
-Office.onReady(() => {
+Office.onReady().then(() => {
   console.log("Office.js is ready");
-});
+
 
 const apiUrlVlp = "https://vlp-upload1.onrender.com/process";
 const apiUrlKuep = "https://vlp-upload1.onrender.com/process_kuep";
@@ -82,7 +82,7 @@ document.addEventListener("DOMContentLoaded", () => {
     console.error("KÜP Elemente nicht gefunden!");
   }
 });
-
+});
 
 function normalizeLabel(label) {
   return label.toLowerCase().replace(/[^a-z0-9]/gi, "");
