@@ -40,28 +40,34 @@ HEADER_MAP = {
 }
 
 def extract_kuep_data(pdf_path):
-    kabel_liste = []
+    kabelnummer_rx = re.compile(r'^S[\w\d]+$', re.I)        # z.B. S1234
+    kabeltyp_rx = re.compile(r'\b[\d,\.]+x[\d,\.]+x[\d,\.]+\b', re.I)  # 20x1x1,4
+    laenge_rx = re.compile(r'\b\d+\s?m\b', re.I)             # 1200m
 
-    kabelnummer_rx = re.compile(r'^S[\w\d]+$', re.I)  # S1234 etc.
-    kabeltyp_rx = re.compile(r'\b[\d,\.]+x[\d,\.]+x[\d,\.]+\b', re.I)  # z.B. 20x1x1,4
-    laenge_rx = re.compile(r'\b\d+\s?m\b', re.I)  # z.B. 1200m
+    results = []
 
     with pdfplumber.open(pdf_path) as pdf:
         for page in pdf.pages:
-            texts = page.extract_words()
+            try:
+                texts = page.extract_words()
+            except Exception:
+                continue
+
             for t in texts:
                 text = t['text'].strip()
                 if kabelnummer_rx.match(text):
                     kabelnummer = text
                     kabeltyp = find_nearest_text(texts, t, kabeltyp_rx)
                     laenge = find_nearest_text(texts, t, laenge_rx)
-                    kabel_liste.append({
+                    results.append({
                         "Kabelname": kabelnummer,
                         "Kabeltyp": kabeltyp,
                         "SOLL": laenge
                     })
 
-    return pd.DataFrame(kabel_liste)
+    # NICHT als DataFrame aufbauen, sondern erst zum Schluss (sehr speicherschonend!)
+    return pd.DataFrame(results)
+
 
 def find_nearest_text(texts, ref, pattern_rx, max_dist=50):
     ref_x, ref_top = ref['x0'], ref['top']
