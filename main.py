@@ -6,17 +6,25 @@ import uuid
 import os
 import pandas as pd
 import pdfplumber
+import pytesseract
 import difflib
 import re
 import warnings
 import logging
 from pdf2image import convert_from_path
-import pytesseract
-from pdfminer.high_level import extract_pages
-from pdfminer.layout import LTTextLineHorizontal
+from PyPDF2 import PdfReader
+
 logging.basicConfig(level=logging.INFO)
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://magnusbraun.github.io"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -45,66 +53,63 @@ HEADER_MAP = {
 
 # -------------------- NEU: KÜP Positionsbasiert --------------------
 
-def extract_kabel_from_page(texts):
-    kabelnummer_rx = re.compile(r'\bS[\s\-]?\d{3,7}\b', re.I)
+def extract_kuep_data_with_ocr(pdf_path):
+    kabelnummer_rx = re.compile(r'\bS[\w\d\-]+\b', re.I)
     kabeltyp_rx = re.compile(r'\d+[x×]\d+(?:[.,]\d+)?(?:[x×]\d+)?', re.I)
     laenge_rx = re.compile(r'\d+\s?m\b', re.I)
 
     kabel_liste = []
 
-    for t in texts:
-        text = t['text'].strip()
-        if kabelnummer_rx.match(text):
-            x0, top = t['x0'], t['top']
+    try:
+        images = convert_from_path(pdf_path, dpi=300)
+    except Exception as e:
+        raise RuntimeError(f"PDF zu Bild-Konvertierung fehlgeschlagen: {e}")
 
-            kabelnummer = text
-            kabeltyp = find_text_below(texts, x0, top, kabeltyp_rx)
-            laenge = find_text_right(texts, x0, top, laenge_rx)
+    for page_idx, img in enumerate(images):
+        ocr_text = pytesseract.image_to_string(img)
+        print(f"[OCR-DEBUG] Seite {page_idx}:\n{ocr_text}")
 
-            if laenge:
-                laenge = re.sub(r"\s*\(.*?\)", "", laenge).strip()  # Eingeklammerte Werte entfernen
+        lines = [line.strip() for line in ocr_text.splitlines() if line.strip()]
 
-            kabel_liste.append({
-                "Kabelname": kabelnummer,
-                "Kabeltyp": kabeltyp,
-                "SOLL": laenge
-            })
+        for i, line in enumerate(lines):
+            kabelnummer = None
+            kabeltyp = None
+            laenge = None
 
-    return kabel_liste
+            kn = kabelnummer_rx.search(line)
+            if kn:
+                kabelnummer = kn.group()
 
+                # In nächsten Zeilen nach Typ und Länge suchen
+                for offset in range(1, 4):
+                    if i + offset < len(lines):
+                        next_line = lines[i + offset]
+                        if not kabeltyp and kabeltyp_rx.search(next_line):
+                            kabeltyp = kabeltyp_rx.search(next_line).group()
+                        if not laenge and laenge_rx.search(next_line):
+                            laenge = laenge_rx.search(next_line).group()
 
-def find_text_below(texts, ref_x, ref_top, pattern_rx, tolerance=40):
-    for t in texts:
-        if abs(t['x0'] - ref_x) < tolerance and t['top'] > ref_top:
-            if pattern_rx.search(t['text']):
-                return t['text']
-    return None
+                kabel_liste.append({
+                    "Kabelname": kabelnummer,
+                    "Kabeltyp": kabeltyp or "",
+                    "SOLL": laenge or ""
+                })
+    return pd.DataFrame(kabel_liste)
 
-def find_text_right(texts, ref_x, ref_top, pattern_rx, tolerance=40):
-    for t in texts:
-        if abs(t['top'] - ref_top) < tolerance and t['x0'] > ref_x:
-            if pattern_rx.search(t['text']):
-                return t['text']
-    return None
+@app.post("/process_kuep")
+def process_kuep_pdf(file: UploadFile = File(...)):
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Nur PDF-Dateien erlaubt")
+    file_id = str(uuid.uuid4())
+    temp_path = os.path.join("/tmp", f"{file_id}.pdf")
+    with open(temp_path, "wb") as f:
+        shutil.copyfileobj(file.file, f)
 
-# ------------------------------------------------------------------
+    df = extract_kuep_data_with_ocr(temp_path)
+    if df.empty:
+        raise HTTPException(status_code=422, detail="Keine Kabel im KÜP gefunden")
 
-def find_nearest_text(texts, ref, pattern_rx, max_dist=50):
-    ref_x, ref_top = ref['x0'], ref['top']
-    nearest = None
-    min_dist = float('inf')
-
-    for t in texts:
-        if t == ref:
-            continue
-        text = t['text'].strip()
-        if not pattern_rx.search(text):
-            continue
-        dist = ((t['x0'] - ref_x)**2 + (t['top'] - ref_top)**2)**0.5
-        if dist < min_dist and dist <= max_dist:
-            nearest = t
-            min_dist = dist
-    return nearest['text'] if nearest else None
+    return JSONResponse(content=df.to_dict(orient="records"))
 
 def make_unique(columns):
     seen = {}
@@ -138,139 +143,6 @@ def match_header_prefer_exact(text):
         if difflib.get_close_matches(t, [key.lower()] + [s.lower() for s in syns], n=1, cutoff=0.7):
             return key
     return None
-
-@app.post("/upload_kuep_file")
-def upload_kuep_file(file: UploadFile = File(...)):
-    if not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Nur PDF erlaubt")
-    file_id = str(uuid.uuid4())
-    path = f"/tmp/{file_id}.pdf"
-    with open(path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-    return {"file_id": file_id}
-
-def extract_kabel_clusters(pdf_path, page_number=0):
-    kabelnummer_rx = re.compile(r'\bS\d{4,7}\b', re.I)
-    kabeltyp_rx = re.compile(r'\d+\s*[x×]\s*\d+(?:[.,]\d+)?(?:\s*[x×]\s*\d+)?', re.I)
-    laenge_rx = re.compile(r'\d{2,5}\s*m\b', re.I)
-
-    kabelinfos = []
-    page_found = False
-
-    for page_idx, page_layout in enumerate(extract_pages(pdf_path)):
-        if page_idx != page_number:
-            continue
-        page_found = True
-
-        textboxes = [
-            {
-                "text": el.get_text().strip(),
-                "x0": el.bbox[0],
-                "y0": el.bbox[1],
-                "x1": el.bbox[2],
-                "y1": el.bbox[3],
-                "cx": (el.bbox[0] + el.bbox[2]) / 2,
-                "cy": (el.bbox[1] + el.bbox[3]) / 2,
-            }
-            for el in page_layout if isinstance(el, LTTextLineHorizontal)
-        ]
-
-        for t in textboxes:
-            if not kabelnummer_rx.match(t["text"]):
-                continue
-
-            kabelnummer = t["text"]
-            x0, y0 = t["x0"], t["y0"]
-
-            kabeltyp = next(
-                (tb["text"] for tb in textboxes
-                 if abs(tb["x0"] - x0) < 50 and 0 < (tb["y0"] - y0) < 70 and kabeltyp_rx.search(tb["text"])),
-                None
-            )
-
-            laenge = next(
-                (tb["text"] for tb in textboxes
-                 if abs(tb["y0"] - y0) < 30 and (tb["x0"] - x0) > 100 and laenge_rx.search(tb["text"])),
-                None
-            )
-
-            if laenge:
-                laenge = re.sub(r"\s*\(.*?\)", "", laenge).strip()
-
-            kabelinfos.append({
-                "Kabelname": kabelnummer,
-                "Kabeltyp": kabeltyp,
-                "SOLL": laenge
-            })
-
-    if not page_found:
-        raise ValueError("Seite nicht gefunden im PDF")
-
-    return kabelinfos
-from pdf2image import convert_from_path
-import pytesseract
-
-def extract_kabel_with_ocr(pdf_path, page_number=0):
-    kabelnummer_rx = re.compile(r'\bS\d{4,7}\b', re.I)
-    kabeltyp_rx = re.compile(r'\d+\s*[x×]\s*\d+(?:[.,]\d+)?(?:\s*[x×]\s*\d+)?', re.I)
-    laenge_rx = re.compile(r'\d{2,5}\s*m\b', re.I)
-
-    try:
-        images = convert_from_path(pdf_path, first_page=page_number + 1, last_page=page_number + 1, dpi=300)
-    except Exception as e:
-        raise RuntimeError(f"PDF-Konvertierung fehlgeschlagen: {e}")
-
-    if not images:
-        return []
-
-    ocr_text = pytesseract.image_to_string(images[0])
-    print(f"[OCR-DEBUG] Seite {page_number}:\n{ocr_text}")
-
-    
-    # DEBUG: Zeige den gesamten erkannten Text im Terminal
-    print(f"[OCR-DEBUG] Seite {page_number}:\n{ocr_text}")
-    lines = [line.strip() for line in ocr_text.splitlines() if line.strip()]
-
-    kabelinfos = []
-
-    for i, line in enumerate(lines):
-        if kabelnummer_rx.search(line):
-            kabelnummer = kabelnummer_rx.search(line).group()
-            kabeltyp = None
-            laenge = None
-
-            # Suche in den nächsten 1–3 Zeilen nach Typ und Länge
-            for offset in range(1, 4):
-                if i + offset < len(lines):
-                    next_line = lines[i + offset]
-                    if not kabeltyp and kabeltyp_rx.search(next_line):
-                        kabeltyp = kabeltyp_rx.search(next_line).group()
-                    if not laenge and laenge_rx.search(next_line):
-                        laenge = laenge_rx.search(next_line).group()
-
-            kabelinfos.append({
-                "Kabelname": kabelnummer,
-                "Kabeltyp": kabeltyp,
-                "SOLL": laenge
-            })
-
-    return kabelinfos
-
-    
-@app.get("/process_kuep_page_ocr")
-def process_kuep_page_ocr(file_id: str, page: int):
-    temp_path = os.path.join("/tmp", f"{file_id}.pdf")
-
-    if not os.path.exists(temp_path):
-        raise HTTPException(status_code=404, detail="Datei nicht gefunden")
-
-    try:
-        kabelinfos = extract_kabel_with_ocr(temp_path, page_number=page)
-        return JSONResponse(content=kabelinfos)
-    except Exception as e:
-        logging.error(f"OCR-Fehler auf Seite {page}: {e}")
-        return JSONResponse(status_code=200, content=[])
-
 
 
 # ----------------- Unverändert -------------------
@@ -391,13 +263,3 @@ def process_pdf(file: UploadFile = File(...)):
     return JSONResponse(content=mapped)
 from PyPDF2 import PdfReader
 
-@app.get("/kuep_metadata")
-def get_kuep_metadata(file_id: str):
-    path = os.path.join("/tmp", f"{file_id}.pdf")
-    if not os.path.exists(path):
-        raise HTTPException(status_code=404, detail="Datei nicht gefunden")
-    try:
-        reader = PdfReader(path)
-        return {"page_count": len(reader.pages)}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Fehler beim Lesen der PDF: {e}")
