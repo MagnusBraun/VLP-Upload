@@ -10,6 +10,8 @@ import difflib
 import re
 import warnings
 import logging
+from pdfminer.high_level import extract_pages
+from pdfminer.layout import LTTextLineHorizontal
 logging.basicConfig(level=logging.INFO)
 
 app = FastAPI()
@@ -145,6 +147,60 @@ def upload_kuep_file(file: UploadFile = File(...)):
         shutil.copyfileobj(file.file, f)
     return {"file_id": file_id}
 
+def extract_kabel_from_pdfminer(pdf_path, page_number=0):
+    kabelnummer_rx = re.compile(r'\bS\d{4,7}\b', re.I)
+    kabeltyp_rx = re.compile(r'\d+[x×]\d+(?:[.,]\d+)?(?:[x×]\d+)?', re.I)
+    laenge_rx = re.compile(r'\d+\s?m\b', re.I)
+
+    kabelinfos = []
+    page_found = False
+
+    for page_idx, page_layout in enumerate(extract_pages(pdf_path)):
+        if page_idx != page_number:
+            continue
+        page_found = True
+        textboxes = []
+
+        for element in page_layout:
+            if isinstance(element, LTTextLineHorizontal):
+                text = element.get_text().strip()
+                x0, y0, x1, y1 = element.bbox
+                textboxes.append({
+                    "text": text,
+                    "x0": x0,
+                    "y0": y0,
+                    "x1": x1,
+                    "y1": y1
+                })
+
+        for tb in textboxes:
+            if kabelnummer_rx.search(tb["text"]):
+                kabelnummer = tb["text"]
+                x0, y0 = tb["x0"], tb["y0"]
+
+                kabeltyp = None
+                laenge = None
+
+                for other in textboxes:
+                    if abs(other["x0"] - x0) < 20 and other["y0"] < y0 and kabeltyp_rx.search(other["text"]):
+                        kabeltyp = other["text"]
+                        break
+
+                for other in textboxes:
+                    if abs(other["y0"] - y0) < 20 and other["x0"] > x0 and laenge_rx.search(other["text"]):
+                        laenge = re.sub(r"\s*\(.*?\)", "", other["text"]).strip()
+                        break
+
+                kabelinfos.append({
+                    "Kabelname": kabelnummer,
+                    "Kabeltyp": kabeltyp,
+                    "SOLL": laenge
+                })
+
+    if not page_found:
+        raise ValueError("Seite nicht gefunden im PDF")
+    return kabelinfos
+    
 @app.get("/process_kuep_page")
 def process_kuep_page(file_id: str, page: int):
     temp_path = os.path.join("/tmp", f"{file_id}.pdf")
@@ -153,18 +209,12 @@ def process_kuep_page(file_id: str, page: int):
         raise HTTPException(status_code=404, detail="Datei nicht gefunden")
 
     try:
-        with pdfplumber.open(temp_path) as pdf:
-            if page >= len(pdf.pages):
-                raise HTTPException(status_code=416, detail="Seite nicht vorhanden")
-
-            page_obj = pdf.pages[page]
-            texts = page_obj.extract_words() or []
-
-            kabel = extract_kabel_from_page(texts)
-            return JSONResponse(content=kabel)
-
+        kabelinfos = extract_kabel_from_pdfminer(temp_path, page_number=page)
+        return JSONResponse(content=kabelinfos)
     except Exception as e:
+        print(f"[Fehler] Seite {page}: {e}")
         return JSONResponse(status_code=200, content=[])
+
 
 # ----------------- Unverändert -------------------
 
