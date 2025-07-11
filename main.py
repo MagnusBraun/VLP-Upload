@@ -42,7 +42,7 @@ HEADER_MAP = {
 # -------------------- NEU: KÜP Positionsbasiert --------------------
 
 def extract_kabel_from_page(texts):
-    kabelnummer_rx = re.compile(r'^S\d+', re.I)
+kabelnummer_rx = re.compile(r'\bS\d{4,7}\b', re.I)
     kabeltyp_rx = re.compile(r'\d+[x×]\d+(?:[.,]\d+)?(?:[x×]\d+)?', re.I)
     laenge_rx = re.compile(r'\d+\s?m\b', re.I)
 
@@ -69,14 +69,14 @@ def extract_kabel_from_page(texts):
     return kabel_liste
 
 
-def find_text_below(texts, ref_x, ref_top, pattern_rx, tolerance=20):
+def find_text_below(texts, ref_x, ref_top, pattern_rx, tolerance=40):
     for t in texts:
         if abs(t['x0'] - ref_x) < tolerance and t['top'] > ref_top:
             if pattern_rx.search(t['text']):
                 return t['text']
     return None
 
-def find_text_right(texts, ref_x, ref_top, pattern_rx, tolerance=20):
+def find_text_right(texts, ref_x, ref_top, pattern_rx, tolerance=40):
     for t in texts:
         if abs(t['top'] - ref_top) < tolerance and t['x0'] > ref_x:
             if pattern_rx.search(t['text']):
