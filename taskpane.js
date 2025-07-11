@@ -13,29 +13,48 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   document.getElementById("kuepFileInput").addEventListener("change", async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
+  const file = event.target.files[0];
+  if (!file) return;
 
-    const formData = new FormData();
-    formData.append("file", file);
+  const formData = new FormData();
+  formData.append("file", file);
 
-    try {
-      const response = await fetch(apiUrlKuep, {
-        method: "POST",
-        body: formData
-      });
+  try {
+    // Schritt 1: Datei hochladen (nur speichern)
+    const uploadRes = await fetch("https://vlp-upload.onrender.com/upload_kuep_file", {
+      method: "POST",
+      body: formData
+    });
 
-      if (!response.ok) {
-        console.error("Fehler beim Verarbeiten des KÜP:", await response.text());
-        return;
-      }
-
-      const data = await response.json();
-      await insertKuepToExcel(data);
-    } catch (error) {
-      console.error("Netzwerkfehler KÜP:", error);
+    if (!uploadRes.ok) {
+      throw new Error("Datei-Upload fehlgeschlagen");
     }
-  });
+
+    const { file_id } = await uploadRes.json();
+
+    const allResults = [];
+    const maxPages = 100;
+
+    // Schritt 2: Seitenweise abrufen
+    for (let page = 0; page < maxPages; page++) {
+      const res = await fetch(`https://vlp-upload.onrender.com/process_kuep_page?file_id=${file_id}&page=${page}`);
+      if (res.status === 416) break; // Keine weiteren Seiten
+      if (!res.ok) throw new Error(`Fehler beim Laden der Seite ${page + 1}`);
+      const kabel = await res.json();
+      if (kabel.length > 0) {
+        allResults.push(...kabel);
+        // Optional: Vorschau nach jeder Seite aktualisieren
+        previewKuepLive(allResults);
+      }
+    }
+
+    await insertKuepToExcel(allResults);
+
+  } catch (error) {
+    console.error("Netzwerkfehler KÜP:", error);
+  }
+});
+
 
   // VLP Upload Button
   document.getElementById("uploadVlpBtn").addEventListener("click", () => {
