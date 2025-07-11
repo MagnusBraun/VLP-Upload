@@ -2,9 +2,9 @@ Office.onReady(() => {
   console.log("Office.js is ready");
 });
 
-const apiUrlVlp = "https://vlp-upload.onrender.com/process";
-const apiUrlKuep = "https://vlp-upload.onrender.com/process_kuep";
-const apiUrlKuepOCR = "https://vlp-upload.onrender.com/process_kuep_page_ocr";
+const apiUrlVlp = "https://vlp-upload1.onrender.com/process";
+const apiUrlKuep = "https://vlp-upload1.onrender.com/process_kuep";
+const apiUrlKuepOCR = "https://vlp-upload1.onrender.com/process_kuep_page_ocr";
 const storageKey = "pmfusion-column-mapping";
 
 document.addEventListener("DOMContentLoaded", () => {
