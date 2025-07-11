@@ -12,15 +12,18 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("kuepFileInput").click();
   });
 
-  document.getElementById("kuepFileInput").addEventListener("change", async (event) => {
+ document.getElementById("kuepFileInput").addEventListener("change", async (event) => {
   const file = event.target.files[0];
   if (!file) return;
+
+  const preview = document.getElementById("preview");
+  preview.innerHTML = `<p style="font-weight:bold;">Lade PDF hoch...</p>`;
 
   const formData = new FormData();
   formData.append("file", file);
 
   try {
-    // Schritt 1: Datei hochladen (nur speichern)
+    // Schritt 1: PDF speichern
     const uploadRes = await fetch("https://vlp-upload.onrender.com/upload_kuep_file", {
       method: "POST",
       body: formData
@@ -34,26 +37,48 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const allResults = [];
     const maxPages = 100;
+    let totalKabel = 0;
+    const skippedPages = [];
 
-    // Schritt 2: Seitenweise abrufen
     for (let page = 0; page < maxPages; page++) {
+      preview.innerHTML = `<p><strong>Verarbeite Seite ${page + 1}...</strong> <br>Erkannte Kabel: ${totalKabel}</p>`;
+
       const res = await fetch(`https://vlp-upload.onrender.com/process_kuep_page?file_id=${file_id}&page=${page}`);
-      if (res.status === 416) break; // Keine weiteren Seiten
-      if (!res.ok) throw new Error(`Fehler beim Laden der Seite ${page + 1}`);
-      const kabel = await res.json();
-      if (kabel.length > 0) {
-        allResults.push(...kabel);
-        // Optional: Vorschau nach jeder Seite aktualisieren
-        previewKuepLive(allResults);
+
+      if (res.status === 416) break;
+
+      if (!res.ok) {
+        skippedPages.push(page + 1);
+        continue;
       }
+
+      const kabel = await res.json();
+
+      if (Array.isArray(kabel) && kabel.length > 0) {
+        allResults.push(...kabel);
+        totalKabel += kabel.length;
+        previewKuepLive(allResults, totalKabel, page + 1);
+      }
+    }
+
+    if (allResults.length === 0) {
+      preview.innerHTML = `<p style="color:red;"><strong>Keine Kabel erkannt.</strong></p>`;
+      return;
+    }
+
+    preview.innerHTML += `<p style="color:green;"><strong>✅ Fertig. ${totalKabel} Kabel erkannt.</strong></p>`;
+    if (skippedPages.length > 0) {
+      preview.innerHTML += `<p style="color:orange;">⚠️ Seiten übersprungen: ${skippedPages.join(", ")}</p>`;
     }
 
     await insertKuepToExcel(allResults);
 
   } catch (error) {
+    preview.innerHTML = `<p style="color:red;"><strong>Fehler beim Einlesen: ${error.message}</strong></p>`;
     console.error("Netzwerkfehler KÜP:", error);
   }
 });
+
 
 
   // VLP Upload Button
@@ -583,6 +608,36 @@ async function insertKuepToExcel(data) {
 
     await context.sync();
   });
+}
+function previewKuepLive(data, totalKabel, currentPage) {
+  const preview = document.getElementById("preview");
+
+  const headers = ["Kabelname", "Kabeltyp", "SOLL"];
+  const table = document.createElement("table");
+  table.border = "1";
+  table.style.marginTop = "1em";
+
+  const thead = table.createTHead();
+  const headRow = thead.insertRow();
+  headers.forEach(h => {
+    const th = document.createElement("th");
+    th.textContent = h;
+    headRow.appendChild(th);
+  });
+
+  const tbody = table.createTBody();
+  data.forEach(row => {
+    const tr = tbody.insertRow();
+    headers.forEach(h => {
+      const cell = tr.insertCell();
+      cell.textContent = row[h] || "";
+    });
+  });
+
+  preview.innerHTML = `
+    <p><strong>Verarbeite Seite ${currentPage}...</strong><br>Erkannte Kabel: ${totalKabel}</p>
+  `;
+  preview.appendChild(table);
 }
 
 async function removeEmptyRows(context, sheet) {
