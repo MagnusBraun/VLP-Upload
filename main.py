@@ -10,6 +10,8 @@ import difflib
 import re
 import warnings
 import logging
+from pdf2image import convert_from_path
+import pytesseract
 from pdfminer.high_level import extract_pages
 from pdfminer.layout import LTTextLineHorizontal
 logging.basicConfig(level=logging.INFO)
