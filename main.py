@@ -130,14 +130,47 @@ def process_kuep_pdf(file: UploadFile = File(...)):
 
     file_id = str(uuid.uuid4())
     temp_path = os.path.join("/tmp", f"{file_id}.pdf")
-    with open(temp_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
 
-    df = extract_kuep_data(temp_path)
-    if df.empty:
-        raise HTTPException(status_code=422, detail="Keine Kabel im KÜP gefunden")
+    try:
+        with open(temp_path, "wb") as f:
+            shutil.copyfileobj(file.file, f)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Datei konnte nicht gespeichert werden: {e}")
 
-    return JSONResponse(content=df.to_dict(orient="records"))
+    kabelnummer_rx = re.compile(r'^S[\w\d]+$', re.I)
+    kabeltyp_rx = re.compile(r'\b[\d,\.]+x[\d,\.]+x[\d,\.]+\b', re.I)
+    laenge_rx = re.compile(r'\b\d+\s?m\b', re.I)
+
+    results = []
+
+    try:
+        with pdfplumber.open(temp_path) as pdf:
+            for page_num, page in enumerate(pdf.pages):
+                try:
+                    texts = page.extract_words()
+                except Exception as e:
+                    continue  # Seite überspringen, aber nicht crashen
+
+                for t in texts:
+                    text = t['text'].strip()
+                    if kabelnummer_rx.match(text):
+                        kabelnummer = text
+                        kabeltyp = find_nearest_text(texts, t, kabeltyp_rx)
+                        laenge = find_nearest_text(texts, t, laenge_rx)
+                        results.append({
+                            "Kabelname": kabelnummer,
+                            "Kabeltyp": kabeltyp,
+                            "SOLL": laenge
+                        })
+
+        if not results:
+            raise HTTPException(status_code=422, detail="Keine Kabel im KÜP gefunden")
+
+        return JSONResponse(content=results)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"PDF konnte nicht verarbeitet werden: {e}")
+
 
 def extract_data_from_pdf(pdf_path):
     alle_daten = []
