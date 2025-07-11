@@ -9,6 +9,8 @@ import pdfplumber
 import difflib
 import re
 import warnings
+import logging
+logging.basicConfig(level=logging.INFO)
 
 app = FastAPI()
 
