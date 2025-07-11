@@ -123,53 +123,52 @@ def match_header_prefer_exact(text):
             return key
     return None
     
-@app.post("/process_kuep")
-def process_kuep_pdf(file: UploadFile = File(...)):
+@app.post("/upload_kuep_file")
+def upload_kuep_file(file: UploadFile = File(...)):
     if not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Nur PDF-Dateien erlaubt")
-
+        raise HTTPException(status_code=400, detail="Nur PDF erlaubt")
     file_id = str(uuid.uuid4())
+    path = f"/tmp/{file_id}.pdf"
+    with open(path, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+    return {"file_id": file_id}
+    
+@app.get("/process_kuep_page")
+def process_kuep_page(file_id: str, page: int):
     temp_path = os.path.join("/tmp", f"{file_id}.pdf")
 
-    try:
-        with open(temp_path, "wb") as f:
-            shutil.copyfileobj(file.file, f)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Datei konnte nicht gespeichert werden: {e}")
+    if not os.path.exists(temp_path):
+        raise HTTPException(status_code=404, detail="Datei nicht gefunden")
 
     kabelnummer_rx = re.compile(r'^S[\w\d]+$', re.I)
     kabeltyp_rx = re.compile(r'\b[\d,\.]+x[\d,\.]+x[\d,\.]+\b', re.I)
     laenge_rx = re.compile(r'\b\d+\s?m\b', re.I)
 
-    results = []
-
     try:
         with pdfplumber.open(temp_path) as pdf:
-            for page_num, page in enumerate(pdf.pages):
-                try:
-                    texts = page.extract_words()
-                except Exception as e:
-                    continue  # Seite überspringen, aber nicht crashen
+            if page >= len(pdf.pages):
+                raise HTTPException(status_code=416, detail="Seite nicht vorhanden")
 
-                for t in texts:
-                    text = t['text'].strip()
-                    if kabelnummer_rx.match(text):
-                        kabelnummer = text
-                        kabeltyp = find_nearest_text(texts, t, kabeltyp_rx)
-                        laenge = find_nearest_text(texts, t, laenge_rx)
-                        results.append({
-                            "Kabelname": kabelnummer,
-                            "Kabeltyp": kabeltyp,
-                            "SOLL": laenge
-                        })
+            page_obj = pdf.pages[page]
+            texts = page_obj.extract_words()
 
-        if not results:
-            raise HTTPException(status_code=422, detail="Keine Kabel im KÜP gefunden")
+            results = []
+            for t in texts:
+                text = t['text'].strip()
+                if kabelnummer_rx.match(text):
+                    kabelnummer = text
+                    kabeltyp = find_nearest_text(texts, t, kabeltyp_rx)
+                    laenge = find_nearest_text(texts, t, laenge_rx)
+                    results.append({
+                        "Kabelname": kabelnummer,
+                        "Kabeltyp": kabeltyp,
+                        "SOLL": laenge
+                    })
 
-        return JSONResponse(content=results)
+            return JSONResponse(content=results)
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"PDF konnte nicht verarbeitet werden: {e}")
+        raise HTTPException(status_code=500, detail=f"Fehler beim Verarbeiten der Seite: {e}")
 
 
 def extract_data_from_pdf(pdf_path):
