@@ -409,13 +409,13 @@ function previewInTable(mapped) {
   preview.appendChild(resetBtn);
 }
 
-function previewKuepLive(data) {
+function previewKuepLive(data, totalKabel, currentPage) {
   const preview = document.getElementById("preview");
-  preview.innerHTML = "";
 
   const headers = ["Kabelname", "Kabeltyp", "SOLL"];
   const table = document.createElement("table");
   table.border = "1";
+  table.style.marginTop = "1em";
 
   const thead = table.createTHead();
   const headRow = thead.insertRow();
@@ -434,8 +434,12 @@ function previewKuepLive(data) {
     });
   });
 
+  preview.innerHTML = `
+    <p><strong>Verarbeite Seite ${currentPage}...</strong><br>Erkannte Kabel: ${totalKabel}</p>
+  `;
   preview.appendChild(table);
 }
+
 
 async function insertToExcel(mapped) {
   await Excel.run(async (context) => {
@@ -608,36 +612,6 @@ async function insertKuepToExcel(data) {
 
     await context.sync();
   });
-}
-function previewKuepLive(data, totalKabel, currentPage) {
-  const preview = document.getElementById("preview");
-
-  const headers = ["Kabelname", "Kabeltyp", "SOLL"];
-  const table = document.createElement("table");
-  table.border = "1";
-  table.style.marginTop = "1em";
-
-  const thead = table.createTHead();
-  const headRow = thead.insertRow();
-  headers.forEach(h => {
-    const th = document.createElement("th");
-    th.textContent = h;
-    headRow.appendChild(th);
-  });
-
-  const tbody = table.createTBody();
-  data.forEach(row => {
-    const tr = tbody.insertRow();
-    headers.forEach(h => {
-      const cell = tr.insertCell();
-      cell.textContent = row[h] || "";
-    });
-  });
-
-  preview.innerHTML = `
-    <p><strong>Verarbeite Seite ${currentPage}...</strong><br>Erkannte Kabel: ${totalKabel}</p>
-  `;
-  preview.appendChild(table);
 }
 
 async function removeEmptyRows(context, sheet) {
