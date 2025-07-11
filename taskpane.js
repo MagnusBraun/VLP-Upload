@@ -7,89 +7,54 @@ const apiUrlKuep = "https://vlp-upload1.onrender.com/process_kuep";
 const storageKey = "pmfusion-column-mapping";
 
 document.addEventListener("DOMContentLoaded", () => {
-  // KÜP Upload Button
+  // VLP Mehrfach-Upload
+  document.getElementById("fileInput").addEventListener("change", async (event) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    const previewDiv = document.getElementById("preview");
+    previewDiv.innerHTML = ""; // vorherige Ergebnisse löschen
+
+    for (const file of files) {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      try {
+        const response = await fetch("https://vlp-upload1.onrender.com/process", {
+          method: "POST",
+          body: formData
+        });
+
+        if (!response.ok) {
+          const err = await response.text();
+          previewDiv.innerHTML += `<p style="color:red;">Fehler bei ${file.name}: ${err}</p>`;
+          continue;
+        }
+
+        const data = await response.json();
+
+        // Preview anzeigen (einfaches JSON für Start)
+        previewDiv.innerHTML += `
+          <h4>${file.name}</h4>
+          <pre>${JSON.stringify(data, null, 2)}</pre>
+        `;
+
+        // Falls du direkt in Excel einfügen willst:
+        // await insertToExcel(data);
+
+      } catch (error) {
+        console.error("Netzwerkfehler:", error);
+        previewDiv.innerHTML += `<p style="color:red;">Netzwerkfehler bei ${file.name}: ${error}</p>`;
+      }
+    }
+  });
+
+  // KÜP Upload (nur eine Datei)
   document.getElementById("uploadKuepBtn").addEventListener("click", () => {
     document.getElementById("kuepFileInput").click();
   });
 
- document.getElementById("kuepFileInput").addEventListener("change", async (event) => {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  const preview = document.getElementById("preview");
-  preview.innerHTML = `<p style="font-weight:bold;">Lade PDF hoch...</p>`;
-
-  const formData = new FormData();
-  formData.append("file", file);
-
-  try {
-    // Schritt 1: PDF speichern
-    const uploadRes = await fetch("https://vlp-upload.onrender.com/upload_kuep_file", {
-      method: "POST",
-      body: formData
-    });
-
-    if (!uploadRes.ok) {
-      throw new Error("Datei-Upload fehlgeschlagen");
-    }
-
-    const { file_id } = await uploadRes.json();
-
-    const allResults = [];
-    // Nach dem Upload, PDF-Seitenanzahl vom Server abrufen
-    const metaRes = await fetch(`https://vlp-upload.onrender.com/kuep_metadata?file_id=${file_id}`);
-    const meta = await metaRes.json();
-    const maxPages = meta.page_count || 1;
-    let totalKabel = 0;
-    const skippedPages = [];
-
-    for (let page = 0; page < maxPages; page++) {
-      preview.innerHTML = `<p><strong>Verarbeite Seite ${page + 1}...</strong> <br>Erkannte Kabel: ${totalKabel}</p>`;
-
-      const res = await fetch(`https://vlp-upload.onrender.com/process_kuep_page_ocr?file_id=${file_id}&page=${page}`);
-
-      if (res.status === 416) break;
-
-      if (!res.ok) {
-        skippedPages.push(page + 1);
-        continue;
-      }
-
-      const kabel = await res.json();
-
-      if (Array.isArray(kabel) && kabel.length > 0) {
-        allResults.push(...kabel);
-        totalKabel += kabel.length;
-        previewKuepLive(allResults, totalKabel, page + 1);
-      }
-    }
-
-    if (allResults.length === 0) {
-      preview.innerHTML = `<p style="color:red;"><strong>Keine Kabel erkannt.</strong></p>`;
-      return;
-    }
-
-    preview.innerHTML += `<p style="color:green;"><strong>✅ Fertig. ${totalKabel} Kabel erkannt.</strong></p>`;
-    if (skippedPages.length > 0) {
-      preview.innerHTML += `<p style="color:orange;">⚠️ Seiten übersprungen: ${skippedPages.join(", ")}</p>`;
-    }
-
-    await insertKuepToExcel(allResults);
-
-  } catch (error) {
-    preview.innerHTML = `<p style="color:red;"><strong>Fehler beim Einlesen: ${error.message}</strong></p>`;
-    console.error("Netzwerkfehler KÜP:", error);
-  }
-});
-
-
-
-  // VLP Upload Button
-  document.getElementById("uploadVlpBtn").addEventListener("click", () => {
-    document.getElementById("vlpFileInput").click();
-  });
-
-  document.getElementById("vlpFileInput").addEventListener("change", async (event) => {
+  document.getElementById("kuepFileInput").addEventListener("change", async (event) => {
     const file = event.target.files[0];
     if (!file) return;
 
@@ -97,20 +62,21 @@ document.addEventListener("DOMContentLoaded", () => {
     formData.append("file", file);
 
     try {
-      const response = await fetch(apiUrlVlp, {
+      const response = await fetch("https://vlp-upload1.onrender.com/process_kuep", {
         method: "POST",
         body: formData
       });
 
       if (!response.ok) {
-        console.error("Fehler beim Verarbeiten des VLP:", await response.text());
+        console.error("Fehler beim Verarbeiten des KÜP:", await response.text());
         return;
       }
 
       const data = await response.json();
-      await insertToExcel(data);
+      // Hier kannst du insertKuepToExcel(data) aufrufen
+      console.log("KÜP Daten:", data);
     } catch (error) {
-      console.error("Netzwerkfehler VLP:", error);
+      console.error("Netzwerkfehler:", error);
     }
   });
 });
