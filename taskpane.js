@@ -86,56 +86,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 });
-function previewKuepLive(data) {
-  const preview = document.getElementById("preview");
-  preview.innerHTML = "";
 
-  const headers = ["Kabelname", "Kabeltyp", "SOLL"];
-  const table = document.createElement("table");
-  table.border = "1";
 
-  const thead = table.createTHead();
-  const headRow = thead.insertRow();
-  headers.forEach(h => {
-    const th = document.createElement("th");
-    th.textContent = h;
-    headRow.appendChild(th);
-  });
-
-  const tbody = table.createTBody();
-  data.forEach(row => {
-    const tr = tbody.insertRow();
-    headers.forEach(h => {
-      const cell = tr.insertCell();
-      cell.textContent = row[h] || "";
-    });
-  });
-
-  preview.appendChild(table);
-}
-
-async function insertKuepToExcel(data) {
-  await Excel.run(async (context) => {
-    const sheet = context.workbook.worksheets.getActiveWorksheet();
-
-    // Spalten: wie du willst; SOLL=Kabellänge
-    const headers = ["Kabelname", "Kabeltyp", "SOLL"];
-    const rows = data.map(item => [
-      item.Kabelname || "",
-      item.Kabeltyp || "",
-      item.SOLL || ""
-    ]);
-
-    const allValues = [headers, ...rows];
-
-    // Schreibe ab Zelle A1 oder wähle andere Startzelle
-    const startCell = sheet.getRange("A1");
-    const range = startCell.getResizedRange(allValues.length - 1, headers.length - 1);
-    range.values = allValues;
-
-    await context.sync();
-  });
-}
 
 function normalizeLabel(label) {
   return label.toLowerCase().replace(/[^a-z0-9]/gi, "");
@@ -432,6 +384,34 @@ function previewInTable(mapped) {
   preview.appendChild(resetBtn);
 }
 
+function previewKuepLive(data) {
+  const preview = document.getElementById("preview");
+  preview.innerHTML = "";
+
+  const headers = ["Kabelname", "Kabeltyp", "SOLL"];
+  const table = document.createElement("table");
+  table.border = "1";
+
+  const thead = table.createTHead();
+  const headRow = thead.insertRow();
+  headers.forEach(h => {
+    const th = document.createElement("th");
+    th.textContent = h;
+    headRow.appendChild(th);
+  });
+
+  const tbody = table.createTBody();
+  data.forEach(row => {
+    const tr = tbody.insertRow();
+    headers.forEach(h => {
+      const cell = tr.insertCell();
+      cell.textContent = row[h] || "";
+    });
+  });
+
+  preview.appendChild(table);
+}
+
 async function insertToExcel(mapped) {
   await Excel.run(async (context) => {
     const sheet = context.workbook.worksheets.getActiveWorksheet();
@@ -582,6 +562,28 @@ async function insertToExcel(mapped) {
   });
 }
 
+async function insertKuepToExcel(data) {
+  await Excel.run(async (context) => {
+    const sheet = context.workbook.worksheets.getActiveWorksheet();
+
+    // Spalten: wie du willst; SOLL=Kabellänge
+    const headers = ["Kabelname", "Kabeltyp", "SOLL"];
+    const rows = data.map(item => [
+      item.Kabelname || "",
+      item.Kabeltyp || "",
+      item.SOLL || ""
+    ]);
+
+    const allValues = [headers, ...rows];
+
+    // Schreibe ab Zelle A1 oder wähle andere Startzelle
+    const startCell = sheet.getRange("A1");
+    const range = startCell.getResizedRange(allValues.length - 1, headers.length - 1);
+    range.values = allValues;
+
+    await context.sync();
+  });
+}
 
 async function removeEmptyRows(context, sheet) {
   const usedRange = sheet.getUsedRange();
