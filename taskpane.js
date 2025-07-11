@@ -21,7 +21,7 @@ document.addEventListener("DOMContentLoaded", () => {
     formData.append("file", file);
 
     try {
-      const response = await fetch("https://dein-backend.onrender.com/process_kuep", {
+      const response = await fetch("https://vlp-upload.onrender.com/process_kuep", {
         method: "POST",
         body: formData
       });
