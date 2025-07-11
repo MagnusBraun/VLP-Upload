@@ -42,7 +42,7 @@ HEADER_MAP = {
 # -------------------- NEU: KÜP Positionsbasiert --------------------
 
 def extract_kabel_from_page(texts):
-kabelnummer_rx = re.compile(r'\bS\d{4,7}\b', re.I)
+    kabelnummer_rx = re.compile(r'\bS\d{4,7}\b', re.I)
     kabeltyp_rx = re.compile(r'\d+[x×]\d+(?:[.,]\d+)?(?:[x×]\d+)?', re.I)
     laenge_rx = re.compile(r'\d+\s?m\b', re.I)
 
