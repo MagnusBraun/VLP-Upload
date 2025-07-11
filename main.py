@@ -36,26 +36,6 @@ HEADER_MAP = {
     "Bemerkung": ["Bemerkungen","bemerkung","bemerkungen", "notiz", "kommentar", "Kommentar", "Anmerkung", "anmerkung","Bemerkungen Besonderheiten","BemerkungenBesonderheiten","Besonderheiten","besonderheiten"]
 }
 
-@app.post("/process_kuep")
-def process_kuep_pdf(file: UploadFile = File(...)):
-    if not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Nur PDF-Dateien erlaubt")
-    file_id = str(uuid.uuid4())
-    temp_path = os.path.join("/tmp", f"{file_id}.pdf")
-    with open(temp_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-
-    df = extract_kuep_data(temp_path)
-    if df.empty:
-        raise HTTPException(status_code=422, detail="Keine Kabeldaten im KÜP gefunden")
-
-    # Spalten umbenennen
-    df = df.rename(columns={"Länge": "SOLL"})
-
-    # Sende als JSON zurück
-    return JSONResponse(content=df.to_dict(orient="records"))
-
-
 def make_unique(columns):
     seen = {}
     result = []
