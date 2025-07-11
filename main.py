@@ -54,19 +54,22 @@ HEADER_MAP = {
 # -------------------- NEU: KÜP Positionsbasiert --------------------
 
 def extract_kuep_data_with_ocr(pdf_path):
-    kabelnummer_rx = re.compile(r'\bS[\w\d\-]+\b', re.I)
+    kabelnummer_rx = re.compile(r'S\s*[\d\w\-]+', re.I)
     kabeltyp_rx = re.compile(r'\d+[x×]\d+(?:[.,]\d+)?(?:[x×]\d+)?', re.I)
     laenge_rx = re.compile(r'\d+\s?m\b', re.I)
 
     kabel_liste = []
 
     try:
-        images = convert_from_path(pdf_path, dpi=300)
+        images = convert_from_path(pdf_path, dpi=400)
     except Exception as e:
         raise RuntimeError(f"PDF zu Bild-Konvertierung fehlgeschlagen: {e}")
 
     for page_idx, img in enumerate(images):
-        ocr_text = pytesseract.image_to_string(img)
+        ocr_text = pytesseract.image_to_string(
+            img,
+            config='--psm 6'  # oder 11 oder 3 – je nach Layout
+        )
         print(f"[OCR-DEBUG] Seite {page_idx}:\n{ocr_text}")
 
         lines = [line.strip() for line in ocr_text.splitlines() if line.strip()]
