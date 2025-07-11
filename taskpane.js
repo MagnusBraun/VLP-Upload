@@ -86,6 +86,33 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 });
+function previewKuepLive(data) {
+  const preview = document.getElementById("preview");
+  preview.innerHTML = "";
+
+  const headers = ["Kabelname", "Kabeltyp", "SOLL"];
+  const table = document.createElement("table");
+  table.border = "1";
+
+  const thead = table.createTHead();
+  const headRow = thead.insertRow();
+  headers.forEach(h => {
+    const th = document.createElement("th");
+    th.textContent = h;
+    headRow.appendChild(th);
+  });
+
+  const tbody = table.createTBody();
+  data.forEach(row => {
+    const tr = tbody.insertRow();
+    headers.forEach(h => {
+      const cell = tr.insertCell();
+      cell.textContent = row[h] || "";
+    });
+  });
+
+  preview.appendChild(table);
+}
 
 async function insertKuepToExcel(data) {
   await Excel.run(async (context) => {
