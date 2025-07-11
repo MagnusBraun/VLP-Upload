@@ -14,14 +14,14 @@ logging.basicConfig(level=logging.INFO)
 
 app = FastAPI()
 
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://magnusbraun.github.io"],  # exakt deine GitHub Pages Domain
+    allow_origins=["https://magnusbraun.github.io"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 HEADER_MAP = {
     "Kabelnummer": ["kabelnummer", "kabel-nummer", "Kabel-nummer", "Kabel-Nummer", "Kabel-Nr","Kabel-Nr.", "Kabel-nr", "Kabel-nr.", "kabel-nr", "kabel-nr."],
     "Kabeltyp": ["kabeltyp", "typ", "Kabeltype", "Kabel-type", "Kabel-Type"],
@@ -35,39 +35,55 @@ HEADER_MAP = {
     "Metr.(bis)": ["metr", "meter", "metr.","Metr.", "Metrier.", "metrier.", "Metrierung", "metrierung", "Ende Meter E"],
     "SOLL": ["soll", "sollwert", "soll m"],
     "IST": ["ist", "istwert", "ist m", "Verlegte-Länge","Verlegte- Länge"],
-    "Verlegeart": ["verlegeart", "verlegungsart", "Verlegeart Hand/Masch.", "VerlegeartHand/Masch.","verlegeart Hand/Masch.",],
+    "Verlegeart": ["verlegeart", "verlegungsart", "Verlegeart Hand/Masch.", "VerlegeartHand/Masch.","verlegeart Hand/Masch."],
     "Bemerkung": ["Bemerkungen","bemerkung","bemerkungen", "notiz", "kommentar", "Kommentar", "Anmerkung", "anmerkung","Bemerkungen Besonderheiten","BemerkungenBesonderheiten","Besonderheiten","besonderheiten"]
 }
 
-def extract_kuep_data(pdf_path):
-    kabelnummer_rx = re.compile(r'^S[\w\d]+$', re.I)        # z.B. S1234
-    kabeltyp_rx = re.compile(r'\b[\d,\.]+x[\d,\.]+x[\d,\.]+\b', re.I)  # 20x1x1,4
-    laenge_rx = re.compile(r'\b\d+\s?m\b', re.I)             # 1200m
+# -------------------- NEU: KÜP Positionsbasiert --------------------
 
-    results = []
+def extract_kabel_from_page(texts):
+    kabelnummer_rx = re.compile(r'^S\d+', re.I)
+    kabeltyp_rx = re.compile(r'\d+[x×]\d+(?:[.,]\d+)?(?:[x×]\d+)?', re.I)
+    laenge_rx = re.compile(r'\d+\s?m\b', re.I)
 
-    with pdfplumber.open(pdf_path) as pdf:
-        for page in pdf.pages:
-            try:
-                texts = page.extract_words()
-            except Exception:
-                continue
+    kabel_liste = []
 
-            for t in texts:
-                text = t['text'].strip()
-                if kabelnummer_rx.match(text):
-                    kabelnummer = text
-                    kabeltyp = find_nearest_text(texts, t, kabeltyp_rx)
-                    laenge = find_nearest_text(texts, t, laenge_rx)
-                    results.append({
-                        "Kabelname": kabelnummer,
-                        "Kabeltyp": kabeltyp,
-                        "SOLL": laenge
-                    })
+    for t in texts:
+        text = t['text'].strip()
+        if kabelnummer_rx.match(text):
+            x0, top = t['x0'], t['top']
 
-    # NICHT als DataFrame aufbauen, sondern erst zum Schluss (sehr speicherschonend!)
-    return pd.DataFrame(results)
+            kabelnummer = text
+            kabeltyp = find_text_below(texts, x0, top, kabeltyp_rx)
+            laenge = find_text_right(texts, x0, top, laenge_rx)
 
+            if laenge:
+                laenge = re.sub(r"\s*\(.*?\)", "", laenge).strip()  # Eingeklammerte Werte entfernen
+
+            kabel_liste.append({
+                "Kabelname": kabelnummer,
+                "Kabeltyp": kabeltyp,
+                "SOLL": laenge
+            })
+
+    return kabel_liste
+
+
+def find_text_below(texts, ref_x, ref_top, pattern_rx, tolerance=20):
+    for t in texts:
+        if abs(t['x0'] - ref_x) < tolerance and t['top'] > ref_top:
+            if pattern_rx.search(t['text']):
+                return t['text']
+    return None
+
+def find_text_right(texts, ref_x, ref_top, pattern_rx, tolerance=20):
+    for t in texts:
+        if abs(t['top'] - ref_top) < tolerance and t['x0'] > ref_x:
+            if pattern_rx.search(t['text']):
+                return t['text']
+    return None
+
+# ------------------------------------------------------------------
 
 def find_nearest_text(texts, ref, pattern_rx, max_dist=50):
     ref_x, ref_top = ref['x0'], ref['top']
@@ -85,8 +101,6 @@ def find_nearest_text(texts, ref, pattern_rx, max_dist=50):
             nearest = t
             min_dist = dist
     return nearest['text'] if nearest else None
-
-
 
 def make_unique(columns):
     seen = {}
@@ -113,16 +127,14 @@ def match_header_prefer_exact(text):
     if not isinstance(text, str): 
         return None
     t = text.strip().lower()
-    # 1) Exaktes Match zuerst prüfen
     for key, syns in HEADER_MAP.items():
         if t in [key.lower()] + [s.lower() for s in syns]:
             return key
-    # 2) Falls kein exaktes Match → unscharfe Suche
     for key, syns in HEADER_MAP.items():
         if difflib.get_close_matches(t, [key.lower()] + [s.lower() for s in syns], n=1, cutoff=0.7):
             return key
     return None
-    
+
 @app.post("/upload_kuep_file")
 def upload_kuep_file(file: UploadFile = File(...)):
     if not file.filename.lower().endswith(".pdf"):
@@ -132,7 +144,7 @@ def upload_kuep_file(file: UploadFile = File(...)):
     with open(path, "wb") as f:
         shutil.copyfileobj(file.file, f)
     return {"file_id": file_id}
-    
+
 @app.get("/process_kuep_page")
 def process_kuep_page(file_id: str, page: int):
     temp_path = os.path.join("/tmp", f"{file_id}.pdf")
@@ -140,36 +152,21 @@ def process_kuep_page(file_id: str, page: int):
     if not os.path.exists(temp_path):
         raise HTTPException(status_code=404, detail="Datei nicht gefunden")
 
-    kabelnummer_rx = re.compile(r'^S[\w\d]+$', re.I)
-    kabeltyp_rx = re.compile(r'\b[\d,\.]+x[\d,\.]+x[\d,\.]+\b', re.I)
-    laenge_rx = re.compile(r'\b\d+\s?m\b', re.I)
-
     try:
         with pdfplumber.open(temp_path) as pdf:
             if page >= len(pdf.pages):
                 raise HTTPException(status_code=416, detail="Seite nicht vorhanden")
 
             page_obj = pdf.pages[page]
-            texts = page_obj.extract_words()
+            texts = page_obj.extract_words() or []
 
-            results = []
-            for t in texts:
-                text = t['text'].strip()
-                if kabelnummer_rx.match(text):
-                    kabelnummer = text
-                    kabeltyp = find_nearest_text(texts, t, kabeltyp_rx)
-                    laenge = find_nearest_text(texts, t, laenge_rx)
-                    results.append({
-                        "Kabelname": kabelnummer,
-                        "Kabeltyp": kabeltyp,
-                        "SOLL": laenge
-                    })
-
-            return JSONResponse(content=results)
+            kabel = extract_kabel_from_page(texts)
+            return JSONResponse(content=kabel)
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Fehler beim Verarbeiten der Seite: {e}")
+        return JSONResponse(status_code=200, content=[])
 
+# ----------------- Unverändert -------------------
 
 def extract_data_from_pdf(pdf_path):
     alle_daten = []
@@ -179,8 +176,6 @@ def extract_data_from_pdf(pdf_path):
             beste_score = 0
             beste_tabelle = None
             beste_header_zeile = None
-
-            # Standardweg: suche die Tabelle mit den meisten erkannten Headern
             for seite in pdf.pages:
                 try:
                     tables = seite.extract_tables()
@@ -188,7 +183,6 @@ def extract_data_from_pdf(pdf_path):
                     continue
                 if not tables:
                     continue
-
                 for tabelle in tables:
                     for zeile_idx, row in enumerate(tabelle):
                         score = sum(1 for cell in row if match_header(cell))
@@ -196,8 +190,6 @@ def extract_data_from_pdf(pdf_path):
                             beste_score = score
                             beste_header_zeile = zeile_idx
                             beste_tabelle = tabelle
-
-            # Standardweg: wenn ausreichend bekannte Header erkannt wurden
             if beste_tabelle and beste_score >= 10:
                 daten_ab_header = beste_tabelle[beste_header_zeile:]
                 header = daten_ab_header[0]
@@ -206,8 +198,6 @@ def extract_data_from_pdf(pdf_path):
                     alle_daten.append(df)
                 except Exception:
                     pass
-
-            # Fallback: spaltenorientiert Header suchen und mehrere Tabellen anhängen
             if not alle_daten:
                 for seite in pdf.pages:
                     try:
@@ -216,21 +206,16 @@ def extract_data_from_pdf(pdf_path):
                         continue
                     if not tables:
                         continue
-
                     for tabelle in tables:
                         if not tabelle or len(tabelle) < 2:
                             continue
-
                         spalten = list(zip(*tabelle))
                         neue_header = []
                         inhalt_nach_header = []
-
                         for spalte in spalten:
                             header_idx = None
                             header_name = None
                             found_exact = False
-
-                            # Erst nach exaktem Match suchen
                             for idx, zelle in enumerate(spalte):
                                 if not isinstance(zelle, str):
                                     continue
@@ -243,8 +228,6 @@ def extract_data_from_pdf(pdf_path):
                                         break
                                 if found_exact:
                                     break
-
-                            # Falls kein exaktes Match gefunden, fuzzy suchen
                             if header_idx is None:
                                 for idx, zelle in enumerate(spalte):
                                     header = match_header(zelle)
@@ -252,27 +235,22 @@ def extract_data_from_pdf(pdf_path):
                                         header_idx = idx
                                         header_name = zelle
                                         break
-
                             if header_idx is not None:
                                 inhalt_nach_header.append(list(spalte[header_idx+1:]))
                                 neue_header.append(header_name)
                             else:
                                 inhalt_nach_header.append(list(spalte[1:]))
                                 neue_header.append(spalte[0] or f"unknown_{len(neue_header)}")
-
                         daten_zeilen = list(zip(*inhalt_nach_header))
-
                         try:
                             df = pd.DataFrame(daten_zeilen, columns=make_unique(neue_header))
-                            df = df.dropna(how='all')  # komplett leere Zeilen entfernen
-                            df = df[df.notna().sum(axis=1) >= 6]  # nur Zeilen mit ≥ 6 Werten behalten
+                            df = df.dropna(how='all')
+                            df = df[df.notna().sum(axis=1) >= 6]
                             if not df.empty:
                                 alle_daten.append(df)
                         except Exception:
                             continue
-
     return pd.concat(alle_daten, ignore_index=True) if alle_daten else pd.DataFrame()
-
 
 def map_columns_to_headers(df):
     mapped = {}
