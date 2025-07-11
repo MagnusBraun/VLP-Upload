@@ -46,7 +46,7 @@ HEADER_MAP = {
 # -------------------- NEU: KÜP Positionsbasiert --------------------
 
 def extract_kabel_from_page(texts):
-    kabelnummer_rx = re.compile(r'\bS[\s-]?\d{3,7}\b', re.I)
+    kabelnummer_rx = re.compile(r'\bS[\s\-]?\d{3,7}\b', re.I)
     kabeltyp_rx = re.compile(r'\d+[x×]\d+(?:[.,]\d+)?(?:[x×]\d+)?', re.I)
     laenge_rx = re.compile(r'\d+\s?m\b', re.I)
 
@@ -224,6 +224,8 @@ def extract_kabel_with_ocr(pdf_path, page_number=0):
         return []
 
     ocr_text = pytesseract.image_to_string(images[0])
+    print(f"[OCR-DEBUG] Seite {page_number}:\n{ocr_text}")
+
     
     # DEBUG: Zeige den gesamten erkannten Text im Terminal
     print(f"[OCR-DEBUG] Seite {page_number}:\n{ocr_text}")
@@ -387,3 +389,15 @@ def process_pdf(file: UploadFile = File(...)):
         raise HTTPException(status_code=422, detail="Keine verarbeitbaren Tabellen gefunden")
     mapped = map_columns_to_headers(df)
     return JSONResponse(content=mapped)
+from PyPDF2 import PdfReader
+
+@app.get("/kuep_metadata")
+def get_kuep_metadata(file_id: str):
+    path = os.path.join("/tmp", f"{file_id}.pdf")
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="Datei nicht gefunden")
+    try:
+        reader = PdfReader(path)
+        return {"page_count": len(reader.pages)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Fehler beim Lesen der PDF: {e}")
