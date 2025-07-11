@@ -1,14 +1,13 @@
 Office.onReady(() => {
-  const input = document.getElementById("fileInput");
-  if (input) {
-    input.onchange = uploadPDF;
-  }
+  console.log("Office.js is ready");
 });
 
-const apiUrl = "https://vlp-upload.onrender.com/process";
+const apiUrlVlp = "https://vlp-upload.onrender.com/process";
+const apiUrlKuep = "https://vlp-upload.onrender.com/process_kuep";
 const storageKey = "pmfusion-column-mapping";
 
 document.addEventListener("DOMContentLoaded", () => {
+  // KÜP Upload Button
   document.getElementById("uploadKuepBtn").addEventListener("click", () => {
     document.getElementById("kuepFileInput").click();
   });
@@ -21,7 +20,7 @@ document.addEventListener("DOMContentLoaded", () => {
     formData.append("file", file);
 
     try {
-      const response = await fetch("https://vlp-upload.onrender.com/process_kuep", {
+      const response = await fetch(apiUrlKuep, {
         method: "POST",
         body: formData
       });
@@ -34,7 +33,37 @@ document.addEventListener("DOMContentLoaded", () => {
       const data = await response.json();
       await insertKuepToExcel(data);
     } catch (error) {
-      console.error("Netzwerkfehler:", error);
+      console.error("Netzwerkfehler KÜP:", error);
+    }
+  });
+
+  // VLP Upload Button
+  document.getElementById("uploadVlpBtn").addEventListener("click", () => {
+    document.getElementById("vlpFileInput").click();
+  });
+
+  document.getElementById("vlpFileInput").addEventListener("change", async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const response = await fetch(apiUrlVlp, {
+        method: "POST",
+        body: formData
+      });
+
+      if (!response.ok) {
+        console.error("Fehler beim Verarbeiten des VLP:", await response.text());
+        return;
+      }
+
+      const data = await response.json();
+      await insertVlpToExcel(data);
+    } catch (error) {
+      console.error("Netzwerkfehler VLP:", error);
     }
   });
 });
