@@ -46,7 +46,7 @@ document.addEventListener("DOMContentLoaded", () => {
     for (let page = 0; page < maxPages; page++) {
       preview.innerHTML = `<p><strong>Verarbeite Seite ${page + 1}...</strong> <br>Erkannte Kabel: ${totalKabel}</p>`;
 
-      const res = await fetch(`https://vlp-upload.onrender.com/process_kuep_page?file_id=${file_id}&page=${page}`);
+      const res = await fetch(`https://vlp-upload.onrender.com/process_kuep_page_ocr?file_id=${file_id}&page=${page}`);
 
       if (res.status === 416) break;
 
