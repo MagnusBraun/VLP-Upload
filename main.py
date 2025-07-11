@@ -46,7 +46,7 @@ HEADER_MAP = {
 # -------------------- NEU: KÜP Positionsbasiert --------------------
 
 def extract_kabel_from_page(texts):
-    kabelnummer_rx = re.compile(r'\bS\d{4,7}\b', re.I)
+    kabelnummer_rx = re.compile(r'\bS[\s-]?\d{3,7}\b', re.I)
     kabeltyp_rx = re.compile(r'\d+[x×]\d+(?:[.,]\d+)?(?:[x×]\d+)?', re.I)
     laenge_rx = re.compile(r'\d+\s?m\b', re.I)
 
@@ -224,6 +224,9 @@ def extract_kabel_with_ocr(pdf_path, page_number=0):
         return []
 
     ocr_text = pytesseract.image_to_string(images[0])
+    
+    # DEBUG: Zeige den gesamten erkannten Text im Terminal
+    print(f"[OCR-DEBUG] Seite {page_number}:\n{ocr_text}")
     lines = [line.strip() for line in ocr_text.splitlines() if line.strip()]
 
     kabelinfos = []
