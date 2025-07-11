@@ -61,7 +61,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       const data = await response.json();
-      await insertVlpToExcel(data);
+      await insertToExcel(data);
     } catch (error) {
       console.error("Netzwerkfehler VLP:", error);
     }
