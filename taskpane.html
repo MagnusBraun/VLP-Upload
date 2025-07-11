@@ -2,42 +2,18 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>VLP Upload</title>
+  <title>VLP & KÜP Upload</title>
   <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
   <script src="taskpane.js" defer></script>
   <style>
     body {
-      <button id="uploadKuepBtn">Kabelübersicht einlesen</button>
-      <input type="file" id="kuepFileInput" accept=".pdf" style="display:none">
-      <script src="taskpane.js" defer></script>
-
-      
       font-family: Calibri, sans-serif;
       margin: 1rem;
     }
 
-    input[type="file"] {
-      margin-bottom: 1rem;
-    }
-
-    table {
-      border-collapse: collapse;
-      margin-top: 1rem;
-      width: 100%;
-    }
-
-    th, td {
-      padding: 6px 10px;
-      border: 1px solid #ccc;
-      text-align: left;
-    }
-
-    th {
-      background-color: #f0f0f0;
-    }
-
     button {
       margin-top: 1rem;
+      margin-right: 0.5rem;
       padding: 0.5rem 1rem;
       background-color: #0078D7;
       color: white;
@@ -50,14 +26,22 @@
     button:hover {
       background-color: #005fa3;
     }
+
     #preview {
       margin-top: 1rem;
     }
   </style>
 </head>
 <body>
-  <h2>PDF hochladen</h2>
-  <input type="file" id="fileInput" accept=".pdf" multiple />
+  <h2>PDF Upload</h2>
+  <p>Bitte wählen Sie aus, welche Datei Sie hochladen möchten:</p>
+
+  <button id="uploadVlpBtn">VLP Upload</button>
+  <input type="file" id="vlpFileInput" accept=".pdf" style="display:none" />
+
+  <button id="uploadKuepBtn">KÜP Upload</button>
+  <input type="file" id="kuepFileInput" accept=".pdf" style="display:none" />
+
   <div id="preview"></div>
 </body>
 </html>
