@@ -205,21 +205,65 @@ def extract_kabel_clusters(pdf_path, page_number=0):
         raise ValueError("Seite nicht gefunden im PDF")
 
     return kabelinfos
+from pdf2image import convert_from_path
+import pytesseract
+
+def extract_kabel_with_ocr(pdf_path, page_number=0):
+    kabelnummer_rx = re.compile(r'\bS\d{4,7}\b', re.I)
+    kabeltyp_rx = re.compile(r'\d+\s*[x×]\s*\d+(?:[.,]\d+)?(?:\s*[x×]\s*\d+)?', re.I)
+    laenge_rx = re.compile(r'\d{2,5}\s*m\b', re.I)
+
+    try:
+        images = convert_from_path(pdf_path, first_page=page_number + 1, last_page=page_number + 1, dpi=300)
+    except Exception as e:
+        raise RuntimeError(f"PDF-Konvertierung fehlgeschlagen: {e}")
+
+    if not images:
+        return []
+
+    ocr_text = pytesseract.image_to_string(images[0])
+    lines = [line.strip() for line in ocr_text.splitlines() if line.strip()]
+
+    kabelinfos = []
+
+    for i, line in enumerate(lines):
+        if kabelnummer_rx.search(line):
+            kabelnummer = kabelnummer_rx.search(line).group()
+            kabeltyp = None
+            laenge = None
+
+            # Suche in den nächsten 1–3 Zeilen nach Typ und Länge
+            for offset in range(1, 4):
+                if i + offset < len(lines):
+                    next_line = lines[i + offset]
+                    if not kabeltyp and kabeltyp_rx.search(next_line):
+                        kabeltyp = kabeltyp_rx.search(next_line).group()
+                    if not laenge and laenge_rx.search(next_line):
+                        laenge = laenge_rx.search(next_line).group()
+
+            kabelinfos.append({
+                "Kabelname": kabelnummer,
+                "Kabeltyp": kabeltyp,
+                "SOLL": laenge
+            })
+
+    return kabelinfos
 
     
-@app.get("/process_kuep_page")
-def process_kuep_page(file_id: str, page: int):
+@app.get("/process_kuep_page_ocr")
+def process_kuep_page_ocr(file_id: str, page: int):
     temp_path = os.path.join("/tmp", f"{file_id}.pdf")
 
     if not os.path.exists(temp_path):
         raise HTTPException(status_code=404, detail="Datei nicht gefunden")
 
     try:
-        kabelinfos = extract_kabel_clusters(temp_path, page_number=page)
+        kabelinfos = extract_kabel_with_ocr(temp_path, page_number=page)
         return JSONResponse(content=kabelinfos)
     except Exception as e:
-        print(f"[Fehler] Seite {page}: {e}")
+        logging.error(f"OCR-Fehler auf Seite {page}: {e}")
         return JSONResponse(status_code=200, content=[])
+
 
 
 # ----------------- Unverändert -------------------
