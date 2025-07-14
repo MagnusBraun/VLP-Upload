@@ -1,83 +1,105 @@
-Office.onReady().then(() => {
-  console.log("Office.js is ready");
-
+document.addEventListener("DOMContentLoaded", () => {
   const vlpBtn = document.getElementById("uploadVlpBtn");
-  const vlpInput = document.getElementById("vlpFileInput");
   const kuepBtn = document.getElementById("uploadKuepBtn");
+  const vlpInput = document.getElementById("vlpFileInput");
   const kuepInput = document.getElementById("kuepFileInput");
-  const previewDiv = document.getElementById("preview");
 
   if (vlpBtn && vlpInput) {
     vlpBtn.addEventListener("click", () => vlpInput.click());
-
-    vlpInput.addEventListener("change", async (event) => {
-      const files = event.target.files;
-      if (!files || files.length === 0) return;
-
-      previewDiv.innerHTML = ""; // vorherige Ergebnisse löschen
-
-      for (const file of files) {
-        const formData = new FormData();
-        formData.append("file", file);
-
-        try {
-          const response = await fetch("https://vlp-upload1.onrender.com/process", {
-            method: "POST",
-            body: formData
-          });
-
-          if (!response.ok) {
-            const err = await response.text();
-            previewDiv.innerHTML += `<p style="color:red;">Fehler bei ${file.name}: ${err}</p>`;
-            continue;
-          }
-
-          const data = await response.json();
-          previewDiv.innerHTML += `<h4>${file.name}</h4><pre>${JSON.stringify(data, null, 2)}</pre>`;
-        } catch (error) {
-          console.error("Netzwerkfehler:", error);
-          previewDiv.innerHTML += `<p style="color:red;">Netzwerkfehler bei ${file.name}: ${error}</p>`;
-        }
-      }
-    });
-  } else {
-    console.error("VLP Button oder Input nicht gefunden!");
+    vlpInput.addEventListener("change", uploadVlpFiles);
   }
 
   if (kuepBtn && kuepInput) {
     kuepBtn.addEventListener("click", () => kuepInput.click());
-
-    kuepInput.addEventListener("change", async (event) => {
-      const file = event.target.files[0];
-      if (!file) return;
-
-      const formData = new FormData();
-      formData.append("file", file);
-
-      try {
-        const response = await fetch("https://vlp-upload1.onrender.com/process_kuep", {
-          method: "POST",
-          body: formData
-        });
-
-        if (!response.ok) {
-          const err = await response.text();
-          console.error("Fehler beim Verarbeiten des KÜP:", err);
-          previewDiv.innerHTML += `<p style="color:red;">Fehler beim KÜP Upload: ${err}</p>`;
-          return;
-        }
-
-        const data = await response.json();
-        previewDiv.innerHTML += `<h4>KÜP Ergebnis</h4><pre>${JSON.stringify(data, null, 2)}</pre>`;
-      } catch (error) {
-        console.error("Netzwerkfehler:", error);
-        previewDiv.innerHTML += `<p style="color:red;">Netzwerkfehler beim KÜP Upload: ${error}</p>`;
-      }
-    });
-  } else {
-    console.error("KÜP Button oder Input nicht gefunden!");
+    kuepInput.addEventListener("change", uploadKuepFile);
   }
 });
+
+async function uploadVlpFiles() {
+  const files = document.getElementById("vlpFileInput").files;
+  if (!files || files.length === 0) {
+    showError("Bitte mindestens eine VLP-Datei auswählen.");
+    return;
+  }
+
+  const preview = document.getElementById("preview");
+  preview.innerHTML = "<p><em>Verarbeite VLP PDFs...</em></p>";
+
+  const allResults = [];
+  for (let file of files) {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch("https://vlp-upload1.onrender.com/process", {
+        method: "POST",
+        body: formData
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      allResults.push(data);
+    } catch (e) {
+      showError(`Fehler bei Datei ${file.name}: ${e.message}`);
+      return;
+    }
+  }
+
+  if (allResults.length === 0) {
+    showError("Keine gültigen Daten gefunden.");
+    return;
+  }
+
+  // Kombiniere Ergebnisse
+  const combined = {};
+  for (const data of allResults) {
+    for (const key in data) {
+      combined[key] = (combined[key] || []).concat(data[key]);
+    }
+  }
+
+  previewInTable(combined);
+}
+
+async function uploadKuepFile() {
+  const file = document.getElementById("kuepFileInput").files[0];
+  if (!file) {
+    showError("Bitte eine KÜP-Datei auswählen.");
+    return;
+  }
+
+  const preview = document.getElementById("preview");
+  preview.innerHTML = "<p><em>Verarbeite KÜP PDF...</em></p>";
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  try {
+    const res = await fetch("https://vlp-upload1.onrender.com/process_kuep", {
+      method: "POST",
+      body: formData
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+
+    if (!data || data.length === 0) {
+      showError("Keine Kabel im KÜP gefunden.");
+      return;
+    }
+
+    // Für KÜP ist data ein Array von Objekten; wandle in Spalten-Map
+    const mapped = { "Kabelname": [], "Kabeltyp": [], "SOLL": [] };
+    for (const row of data) {
+      mapped["Kabelname"].push(row.Kabelname || "");
+      mapped["Kabeltyp"].push(row.Kabeltyp || "");
+      mapped["SOLL"].push(row.SOLL || "");
+    }
+
+    previewInTable(mapped);
+  } catch (e) {
+    showError(`Fehler beim KÜP Upload: ${e.message}`);
+  }
+}
+
 
 
 function normalizeLabel(label) {
