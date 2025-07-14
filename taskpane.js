@@ -57,7 +57,7 @@ async function uploadVlpFiles() {
     }
   }
 
-  previewInTable(mapped);
+  previewInTable(combined);
 }
 
 async function uploadKuepFile() {
@@ -94,7 +94,7 @@ async function uploadKuepFile() {
       mapped["SOLL"].push(row.SOLL || "");
     }
 
-    previewInTable(mapped);
+    previewInTable(combined);
   } catch (e) {
     showError(`Fehler beim KÜP Upload: ${e.message}`);
   }
@@ -340,7 +340,7 @@ async function uploadPDF() {
     }
   }
 
-  previewInTable(mapped);
+  previewInTable(combined);
 
   if (errors.length > 0) {
     const errorDiv = document.createElement("div");
