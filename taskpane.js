@@ -57,7 +57,7 @@ async function uploadVlpFiles() {
     }
   }
 
-  previewInTable(combined);
+  previewInTable(mapped);
 }
 
 async function uploadKuepFile() {
@@ -340,7 +340,7 @@ async function uploadPDF() {
     }
   }
 
-  previewInTable(combined);
+  previewInTable(mapped);
 
   if (errors.length > 0) {
     const errorDiv = document.createElement("div");
