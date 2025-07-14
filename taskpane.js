@@ -1,4 +1,4 @@
-Office.onReady().then(() => { 
+Office.onReady().then(() => {
   const storageKey = "pmfusion-column-mapping";
 
   document.addEventListener("DOMContentLoaded", () => {
@@ -6,12 +6,12 @@ Office.onReady().then(() => {
     const kuepBtn = document.getElementById("uploadKuepBtn");
     const vlpInput = document.getElementById("vlpFileInput");
     const kuepInput = document.getElementById("kuepFileInput");
-  
+
     if (vlpBtn && vlpInput) {
       vlpBtn.addEventListener("click", () => vlpInput.click());
       vlpInput.addEventListener("change", uploadVlpFiles);
     }
-  
+
     if (kuepBtn && kuepInput) {
       kuepBtn.addEventListener("click", () => kuepInput.click());
       kuepInput.addEventListener("change", uploadKuepFile);
@@ -24,15 +24,14 @@ Office.onReady().then(() => {
       showError("Bitte mindestens eine VLP-Datei auswählen.");
       return;
     }
-  
+
     const preview = document.getElementById("preview");
     preview.innerHTML = "<p><em>Verarbeite VLP PDFs...</em></p>";
-  
+
     const allResults = [];
     for (let file of files) {
       const formData = new FormData();
       formData.append("file", file);
-  
       try {
         const res = await fetch("https://vlp-upload1.onrender.com/process", {
           method: "POST",
@@ -46,12 +45,12 @@ Office.onReady().then(() => {
         return;
       }
     }
-  
+
     if (allResults.length === 0) {
       showError("Keine gültigen Daten gefunden.");
       return;
     }
-  
+
     // Kombiniere Ergebnisse
     const combined = {};
     for (const data of allResults) {
@@ -59,23 +58,23 @@ Office.onReady().then(() => {
         combined[key] = (combined[key] || []).concat(data[key]);
       }
     }
-  
+
     previewInTable(combined);
   }
-  
-  async function uploadKuepFile() {
+
+    async function uploadKuepFile() {
     const file = document.getElementById("kuepFileInput").files[0];
     if (!file) {
       showError("Bitte eine KÜP-Datei auswählen.");
       return;
     }
-  
+
     const preview = document.getElementById("preview");
     preview.innerHTML = "<p><em>Verarbeite KÜP PDF...</em></p>";
-  
+
     const formData = new FormData();
     formData.append("file", file);
-  
+
     try {
       const res = await fetch("https://vlp-upload1.onrender.com/process_kuep", {
         method: "POST",
@@ -83,21 +82,21 @@ Office.onReady().then(() => {
       });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
-  
+
       if (!data || data.length === 0) {
         showError("Keine Kabel im KÜP gefunden.");
         return;
       }
-  
-      // Für KÜP ist data ein Array von Objekten; wandle in Spalten-Map
+
+      // KÜP: data ist Array von Objekten → in Spalten-Map wandeln
       const mapped = { "Kabelname": [], "Kabeltyp": [], "SOLL": [] };
       for (const row of data) {
         mapped["Kabelname"].push(row.Kabelname || "");
         mapped["Kabeltyp"].push(row.Kabeltyp || "");
         mapped["SOLL"].push(row.SOLL || "");
       }
-  
-      previewInTable(combined);
+
+      previewInTable(mapped);
     } catch (e) {
       showError(`Fehler beim KÜP Upload: ${e.message}`);
     }
