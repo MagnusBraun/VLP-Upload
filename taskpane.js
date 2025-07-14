@@ -1,7 +1,6 @@
 Office.onReady().then(() => {
   const storageKey = "pmfusion-column-mapping";
 
-  document.addEventListener("DOMContentLoaded", () => {
     const vlpBtn = document.getElementById("uploadVlpBtn");
     const kuepBtn = document.getElementById("uploadKuepBtn");
     const vlpInput = document.getElementById("vlpFileInput");
@@ -865,4 +864,4 @@ Office.onReady().then(() => {
     preview.innerHTML = `<div style="color:red;font-weight:bold">${msg}</div>`;
   }
 
-});
+
