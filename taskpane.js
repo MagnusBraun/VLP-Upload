@@ -1,16 +1,11 @@
 Office.onReady().then(() => {
   console.log("Office.js is ready");
 
-
-const apiUrlVlp = "https://vlp-upload1.onrender.com/process";
-const apiUrlKuep = "https://vlp-upload1.onrender.com/process_kuep";
-const storageKey = "pmfusion-column-mapping";
-
-document.addEventListener("DOMContentLoaded", () => {
   const vlpBtn = document.getElementById("uploadVlpBtn");
   const vlpInput = document.getElementById("vlpFileInput");
   const kuepBtn = document.getElementById("uploadKuepBtn");
   const kuepInput = document.getElementById("kuepFileInput");
+  const previewDiv = document.getElementById("preview");
 
   if (vlpBtn && vlpInput) {
     vlpBtn.addEventListener("click", () => vlpInput.click());
@@ -19,8 +14,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const files = event.target.files;
       if (!files || files.length === 0) return;
 
-      const previewDiv = document.getElementById("preview");
-      previewDiv.innerHTML = "";
+      previewDiv.innerHTML = ""; // vorherige Ergebnisse löschen
 
       for (const file of files) {
         const formData = new FormData();
@@ -47,7 +41,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   } else {
-    console.error("VLP Elemente nicht gefunden!");
+    console.error("VLP Button oder Input nicht gefunden!");
   }
 
   if (kuepBtn && kuepInput) {
@@ -67,22 +61,24 @@ document.addEventListener("DOMContentLoaded", () => {
         });
 
         if (!response.ok) {
-          console.error("Fehler beim Verarbeiten des KÜP:", await response.text());
+          const err = await response.text();
+          console.error("Fehler beim Verarbeiten des KÜP:", err);
+          previewDiv.innerHTML += `<p style="color:red;">Fehler beim KÜP Upload: ${err}</p>`;
           return;
         }
 
         const data = await response.json();
-        console.log("KÜP Daten:", data);
-        // previewDiv.innerHTML += `<h4>KÜP Ergebnis</h4><pre>${JSON.stringify(data, null, 2)}</pre>`;
+        previewDiv.innerHTML += `<h4>KÜP Ergebnis</h4><pre>${JSON.stringify(data, null, 2)}</pre>`;
       } catch (error) {
         console.error("Netzwerkfehler:", error);
+        previewDiv.innerHTML += `<p style="color:red;">Netzwerkfehler beim KÜP Upload: ${error}</p>`;
       }
     });
   } else {
-    console.error("KÜP Elemente nicht gefunden!");
+    console.error("KÜP Button oder Input nicht gefunden!");
   }
 });
-});
+
 
 function normalizeLabel(label) {
   return label.toLowerCase().replace(/[^a-z0-9]/gi, "");
