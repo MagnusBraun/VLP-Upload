@@ -15,7 +15,7 @@ Office.onReady().then(() => {
       kuepBtn.addEventListener("click", () => kuepInput.click());
       kuepInput.addEventListener("change", uploadKuepFile);
     }
-  });
+  
   
   async function uploadVlpFiles() {
     const files = document.getElementById("vlpFileInput").files;
@@ -863,5 +863,5 @@ Office.onReady().then(() => {
     const preview = document.getElementById("preview");
     preview.innerHTML = `<div style="color:red;font-weight:bold">${msg}</div>`;
   }
-
+});
 
