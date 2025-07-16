@@ -638,7 +638,8 @@ Office.onReady().then(() => {
     overlay.style.display = "flex";
     overlay.style.alignItems = "center";
     overlay.style.justifyContent = "center";
-  
+
+    
     const dialog = document.createElement("div");
     dialog.style.background = "white";
     dialog.style.padding = "1.5em";
